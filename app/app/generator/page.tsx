@@ -1,11 +1,11 @@
 "use client";
 
+import { PlatformSelector } from "@/components/generator/PlatformSelector";
+import { PromptInput } from "@/components/generator/PromptInput";
+import { Footer } from "@/components/layout/Footer";
+import { Header } from "@/components/layout/Header";
 import { useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
-import { Header } from "@/components/layout/Header";
-import { Footer } from "@/components/layout/Footer";
-import { PromptInput } from "@/components/generator/PromptInput";
-import { PlatformSelector } from "@/components/generator/PlatformSelector";
 
 import { PreviewPanel } from "@/components/generator/PreviewPanel";
 
@@ -14,6 +14,15 @@ export default function GeneratorPage() {
   const [selectedPlatform, setSelectedPlatform] = useState("linkedin");
   const [isLoading, setIsLoading] = useState(false);
   const [generatedContent, setGeneratedContent] = useState("");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [systemInstructions, setSystemInstructions] = useState<
+    Record<string, string>
+  >({
+    linkedin: `You are a professional LinkedIn content creator. Create detailed, insightful posts that focus on industry trends, professional development, and business value. Use a professional yet engaging tone. Include relevant hashtags and structure the post for maximum readability.`,
+    instagram: `You are an Instagram content expert. Create visually descriptive and engaging captions. Use emojis, a casual and fun tone, and include a mix of popular and niche hashtags. Focus on storytelling and encouraging audience interaction.`,
+    threads: `You are a Threads enthusiast. Create short, conversational, and punchy posts that spark discussion. Keep it concise, authentic, and slightly informal. Encourage replies and engagement.`,
+    twitter: `You are a Twitter power user. Create short, punchy tweets (under 280 characters). Use threads if necessary but keep individual tweets concise. Use high-impact words and trending hashtags. Focus on viral potential.`,
+  });
 
   const account = useActiveAccount();
 
@@ -29,7 +38,11 @@ export default function GeneratorPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({
+          prompt,
+          platform: selectedPlatform,
+          systemInstruction: systemInstructions[selectedPlatform],
+        }),
       });
 
       const data = await response.json();
@@ -55,15 +68,22 @@ export default function GeneratorPage() {
           <div className="grid gap-8 lg:grid-cols-2">
             {/* Left Column - Inputs */}
             <div className="flex flex-col gap-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
-              <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
-                Create Social Content
-              </h1>
+              <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
+                  Create Social Content
+                </h1>
+              </div>
 
               <PromptInput value={prompt} onChange={setPrompt} />
 
               <PlatformSelector
                 selected={selectedPlatform}
                 onSelect={setSelectedPlatform}
+                systemInstructions={systemInstructions}
+                setSystemInstructions={setSystemInstructions}
+                isSettingsOpen={isSettingsOpen}
+                setIsSettingsOpen={setIsSettingsOpen}
+                selectedPlatform={selectedPlatform}
               />
 
               <button
