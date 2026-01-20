@@ -8,6 +8,7 @@ interface PlatformSelectorProps {
   isSettingsOpen: boolean;
   setIsSettingsOpen: (open: boolean) => void;
   selectedPlatform: string;
+  onSaveInstruction?: (platform: string, instruction: string) => void;
 }
 
 const platforms = [
@@ -100,6 +101,7 @@ export function PlatformSelector({
   isSettingsOpen,
   setIsSettingsOpen,
   selectedPlatform,
+  onSaveInstruction,
 }: PlatformSelectorProps) {
   return (
     <div>
@@ -143,6 +145,14 @@ export function PlatformSelector({
             [selectedPlatform]: newValue,
           }))
         }
+        onSave={() => {
+          if (onSaveInstruction) {
+            onSaveInstruction(
+              selectedPlatform,
+              systemInstructions[selectedPlatform],
+            );
+          }
+        }}
         platform={selectedPlatform}
       />
       <div className="grid grid-cols-2 gap-6 sm:grid-cols-4 mt-3">

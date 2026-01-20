@@ -1,14 +1,38 @@
 import { useState } from "react";
+import { Toast } from "@/components/ui/Toast";
 
 interface PromptInputProps {
   value: string;
   onChange: (value: string) => void;
+  isConnected: boolean;
 }
 
-export function PromptInput({ value, onChange }: PromptInputProps) {
+export function PromptInput({
+  value,
+  onChange,
+  isConnected,
+}: PromptInputProps) {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [toast, setToast] = useState<{
+    show: boolean;
+    message: string;
+    type: "success" | "error";
+  }>({
+    show: false,
+    message: "",
+    type: "success",
+  });
 
   const handleGenerate = async () => {
+    if (!isConnected) {
+      setToast({
+        show: true,
+        message: "Please connect your wallet to use AI enhancement",
+        type: "error",
+      });
+      return;
+    }
+
     if (!value.trim()) return;
 
     setIsGenerating(true);
@@ -33,6 +57,11 @@ export function PromptInput({ value, onChange }: PromptInputProps) {
       }
     } catch (error) {
       console.error("Failed to generate prompt:", error);
+      setToast({
+        show: true,
+        message: "Failed to enhance prompt",
+        type: "error",
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -91,8 +120,14 @@ export function PromptInput({ value, onChange }: PromptInputProps) {
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="e.g., Explain the concept of Zero Knowledge Proofs for a non-technical audience..."
+        placeholder="Describe the content you want to create..."
         className="min-h-[200px] w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500"
+      />
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.show}
+        onClose={() => setToast((prev) => ({ ...prev, show: false }))}
       />
     </div>
   );

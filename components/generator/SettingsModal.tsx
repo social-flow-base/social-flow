@@ -4,6 +4,7 @@ interface SettingsModalProps {
   value: string;
   onChange: (value: string) => void;
   platform: string;
+  onSave?: () => void;
 }
 
 export function SettingsModal({
@@ -12,8 +13,14 @@ export function SettingsModal({
   value,
   onChange,
   platform,
+  onSave,
 }: SettingsModalProps) {
   if (!isOpen) return null;
+
+  const handleClose = () => {
+    if (onSave) onSave();
+    onClose();
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -24,7 +31,7 @@ export function SettingsModal({
             <span className="capitalize">{platform}</span>
           </h2>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
           >
             <svg
@@ -56,7 +63,7 @@ export function SettingsModal({
 
         <div className="flex justify-end gap-3">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-xl bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
           >
             Done

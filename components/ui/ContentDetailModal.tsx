@@ -64,7 +64,10 @@ export function ContentDetailModal({
             <h3 className="mb-2 text-sm font-medium text-zinc-900 dark:text-white">
               Generated Content
             </h3>
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-6 dark:border-zinc-800 dark:bg-black/50">
+            <div
+              className="rounded-lg border border-zinc-200 bg-zinc-50 p-6 dark:border-zinc-800 dark:bg-black/50 select-none"
+              onContextMenu={(e) => e.preventDefault()}
+            >
               <div className="prose prose-sm dark:prose-invert max-w-none">
                 <ReactMarkdown
                   components={{

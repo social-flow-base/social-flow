@@ -1,6 +1,11 @@
+import { Toast } from "@/components/ui/Toast";
+import { supabase } from "@/utils/supabase/client";
+import { client } from "@/app/client";
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { supabase } from "@/utils/supabase/client";
+import { prepareTransaction, toWei } from "thirdweb";
+import { useSendTransaction } from "thirdweb/react";
+import { defineChain } from "thirdweb/chains";
 
 interface PreviewPanelProps {
   content?: string;
@@ -11,8 +16,6 @@ interface PreviewPanelProps {
   address?: string;
 }
 
-import { Toast } from "@/components/ui/Toast";
-
 export function PreviewPanel({
   content,
   isLocked = true,
@@ -20,7 +23,8 @@ export function PreviewPanel({
   prompt,
   platform,
   address,
-}: PreviewPanelProps) {
+  isLoading = false,
+}: PreviewPanelProps & { isLoading?: boolean }) {
   const [isWindowFocused, setIsWindowFocused] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
@@ -40,6 +44,15 @@ export function PreviewPanel({
   }, [content]);
 
   const handleSave = async () => {
+    if (!isConnected) {
+      setToast({
+        show: true,
+        message: "Please connect your wallet to save content",
+        type: "error",
+      });
+      return;
+    }
+
     if (!content || isSaved) return;
 
     // Save to database
@@ -75,6 +88,80 @@ export function PreviewPanel({
       } finally {
         setIsSaving(false);
       }
+    }
+  };
+
+  // Transaction hook
+  const { mutate: sendTransaction, isPending: isPaying } = useSendTransaction();
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  const handleCopy = async () => {
+    if (!isConnected) {
+      setToast({
+        show: true,
+        message: "Please connect your wallet to copy content",
+        type: "error",
+      });
+      return;
+    }
+
+    if (!content) return;
+
+    // 1. Create a transaction (mock payment of 0.0001 ETH/IDRX equivalent)
+    // Sending to self to be safe and simple for demo
+    const transaction = prepareTransaction({
+      to: address || "0x0000000000000000000000000000000000000000",
+      chain: defineChain(8453), // Base Mainnet
+      client: client,
+      value: toWei("0"), // 0 value for now
+    });
+
+    try {
+      setToast({
+        show: true,
+        message: "Please confirm the transaction to copy...",
+        type: "success",
+      });
+
+      sendTransaction(transaction, {
+        onSuccess: async () => {
+          // 3. On success, copy to clipboard
+          try {
+            await navigator.clipboard.writeText(content);
+            setCopySuccess(true);
+
+            // Auto-save the content
+            handleSave();
+
+            setToast({
+              show: true,
+              message: "Payment confirmed! Copied & Saved!",
+              type: "success",
+            });
+            setTimeout(() => setCopySuccess(false), 2000);
+          } catch (err) {
+            console.error("Failed to copy:", err);
+            // Even if copy fails, we still try to save context
+            handleSave();
+
+            setToast({
+              show: true,
+              message: "Payment successful (Saved), but copy failed",
+              type: "error",
+            });
+          }
+        },
+        onError: (error: any) => {
+          console.error("Transaction failed:", error);
+          setToast({
+            show: true,
+            message: "Transaction failed/rejected. Copy cancelled.",
+            type: "error",
+          });
+        },
+      });
+    } catch (error) {
+      console.error("Error initiating transaction:", error);
     }
   };
 
@@ -169,7 +256,12 @@ export function PreviewPanel({
             </span>
           </div>
         )}
-        {!content ? (
+
+        {isLoading ? (
+          <div className="flex w-full flex-col items-center justify-center gap-4 px-4 text-zinc-500 dark:text-zinc-400">
+            <CyclingText />
+          </div>
+        ) : !content ? (
           <div className="flex max-w-xs flex-col items-center text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-900">
               <svg
@@ -247,19 +339,64 @@ export function PreviewPanel({
 
       <div className="border-t border-zinc-100 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
         <button
-          disabled={!content}
+          onClick={handleCopy}
+          disabled={!content || isPaying}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-zinc-100 py-3 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:hover:bg-zinc-100 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:disabled:hover:bg-zinc-800"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            className="h-4 w-4"
-          >
-            <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z" />
-            <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a.5.5 0 01.146-.354l.854-.853A.5.5 0 0114.499 10h-2.378A1.5 1.5 0 0010.5 11.5v2.379a.5.5 0 01-1.002 0V9.879a.5.5 0 01.146-.353l.854-.854a.5.5 0 01.354-.146H4.5z" />
-          </svg>
-          Copy to Clipboard
+          {isPaying ? (
+            <>
+              <svg
+                className="h-4 w-4 animate-spin text-zinc-500"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              Processing...
+            </>
+          ) : copySuccess ? (
+            <>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="h-4 w-4 text-green-500"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              Copied!
+            </>
+          ) : (
+            <>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="h-4 w-4"
+              >
+                <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z" />
+                <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a.5.5 0 01.146-.354l.854-.853A.5.5 0 0114.499 10h-2.378A1.5 1.5 0 0010.5 11.5v2.379a.5.5 0 01-1.002 0V9.879a.5.5 0 01.146-.353l.854-.854a.5.5 0 01.354-.146H4.5z" />
+              </svg>
+              Pay & Copy
+            </>
+          )}
         </button>
         <button
           onClick={handleSave}
@@ -333,6 +470,42 @@ export function PreviewPanel({
         isVisible={toast.show}
         onClose={() => setToast((prev) => ({ ...prev, show: false }))}
       />
+    </div>
+  );
+}
+
+function CyclingText() {
+  const messages = [
+    "Analyzing your request and identifying key market trends",
+    "Drafting optimized content tailored for your audience",
+    "Refining tone and ensuring maximum engagement potential",
+    "Finalizing hashtags and formatting for the selected platform",
+  ];
+  const [index, setIndex] = useState(0);
+  const [dots, setDots] = useState("");
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex((prev) => (prev + 1) % messages.length);
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [messages.length]);
+
+  useEffect(() => {
+    const dotsInterval = setInterval(() => {
+      setDots((prev) => (prev.length >= 3 ? "" : prev + "."));
+    }, 500);
+
+    return () => clearInterval(dotsInterval);
+  }, []);
+
+  return (
+    <div className="flex items-center justify-center animate-pulse">
+      <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 text-center transition-all duration-300">
+        {messages[index]}
+        <span className="inline-block w-[12px] text-left">{dots}</span>
+      </span>
     </div>
   );
 }
