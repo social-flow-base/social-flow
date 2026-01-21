@@ -38,8 +38,6 @@ export async function GET(request: NextRequest) {
 
     const redirectUrl = new URL(callbackPath, baseUrl).toString();
 
-    console.log("Generating Late Connect URL with redirect:", redirectUrl);
-
     const { data: connectData } = await late.connect.getConnectUrl({
       path: { platform: "twitter" },
       query: {
@@ -53,8 +51,6 @@ export async function GET(request: NextRequest) {
     if (!connectData?.authUrl) {
       throw new Error("No connect URL returned");
     }
-
-    console.log("Redirecting user to:", connectData.authUrl);
 
     const response = NextResponse.redirect(connectData.authUrl);
 

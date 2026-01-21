@@ -5,12 +5,14 @@ export async function POST(request: NextRequest) {
 
   const response = NextResponse.json({ success: true });
 
-  if (platform === "twitter") {
+  if (platform === "twitter" || platform === "all") {
     // Clear all Twitter-related cookies
     response.cookies.delete("twitter_is_connected");
     response.cookies.delete("twitter_username");
     response.cookies.delete("twitter_account_id");
-  } else if (platform === "threads") {
+  }
+
+  if (platform === "threads" || platform === "all") {
     // Clear all Threads-related cookies
     response.cookies.delete("threads_is_connected");
     response.cookies.delete("threads_username");

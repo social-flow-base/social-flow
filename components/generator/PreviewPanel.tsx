@@ -31,6 +31,8 @@ export function PreviewPanel({
   const [isWindowFocused, setIsWindowFocused] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [isDraftSaving, setIsDraftSaving] = useState(false);
+  const [isDraftSaved, setIsDraftSaved] = useState(false);
   const [postingType, setPostingType] = useState<
     null | "immediate" | "scheduled"
   >(null);
@@ -54,6 +56,7 @@ export function PreviewPanel({
   // Reset states when content changes
   useEffect(() => {
     setIsSaved(false);
+    setIsDraftSaved(false);
     setIsPaid(false); // New content requires new payment
   }, [content]);
 
@@ -259,6 +262,59 @@ export function PreviewPanel({
         type: "error",
       });
     }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!isConnected) {
+      setToast({
+        show: true,
+        message: "Please connect your wallet to save draft",
+        type: "error",
+      });
+      return null;
+    }
+
+    if (!content || isDraftSaved) return null;
+
+    if (prompt && platform && address) {
+      setIsDraftSaving(true);
+      try {
+        const { data, error } = await supabase
+          .from("saved_content")
+          .insert([{ wallet_address: address, content, prompt, platform }])
+          .select()
+          .single();
+
+        if (error) {
+          console.error("Error saving draft:", error);
+          setToast({
+            show: true,
+            message: "Failed to save draft: " + error.message,
+            type: "error",
+          });
+          return null;
+        } else {
+          setIsDraftSaved(true);
+          setToast({
+            show: true,
+            message: "Draft saved successfully!",
+            type: "success",
+          });
+          return data;
+        }
+      } catch (err) {
+        console.error("Unexpected error saving draft:", err);
+        setToast({
+          show: true,
+          message: "An unexpected error occurred.",
+          type: "error",
+        });
+        return null;
+      } finally {
+        setIsDraftSaving(false);
+      }
+    }
+    return null;
   };
 
   const handleSave = async () => {
@@ -640,72 +696,141 @@ export function PreviewPanel({
           </div>
         )}
 
-        {isPlatformConnected && (
-          <button
-            onClick={handleSave}
-            disabled={!content || isSaving || isSaved}
-            className={`flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
-              isSaved
-                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-black dark:text-zinc-300 dark:hover:bg-zinc-900"
-            }`}
-          >
-            {isSaving ? (
-              <>
-                <svg
-                  className="h-4 w-4 animate-spin"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
+        {/* {isPlatformConnected && (
+          <>
+            <button
+              onClick={handleSaveDraft}
+              disabled={!content || isDraftSaving || isDraftSaved}
+              className={`mb-3 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
+                isDraftSaved
+                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                  : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-black dark:text-zinc-300 dark:hover:bg-zinc-900"
+              }`}
+            >
+              {isDraftSaving ? (
+                <>
+                  <svg
+                    className="h-4 w-4 animate-spin"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Saving Draft...
+                </>
+              ) : isDraftSaved ? (
+                <>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
                     fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                Saving...
-              </>
-            ) : isSaved ? (
-              <>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="h-4 w-4"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                Saved
-              </>
-            ) : (
-              <>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="h-4 w-4"
-                >
-                  <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.965 3.129V2.75z" />
-                  <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
-                </svg>
-                Save Content
-              </>
-            )}
-          </button>
-        )}
+                    className="h-4 w-4"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Draft Saved
+                </>
+              ) : (
+                <>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="h-4 w-4"
+                  >
+                    <path d="M19.5 21a1.5 1.5 0 001.5-1.5v-4.5a.75.75 0 00-.75-.75H16.5a.75.75 0 00-.75.75v5.25a.75.75 0 00.75.75h3zM13.5 14.25a.75.75 0 00-.75.75v5.25a.75.75 0 00.75.75H15a.75.75 0 00.75-.75v-5.25a.75.75 0 00-.75-.75h-1.5zM12 15a.75.75 0 01.75-.75h1.5a.75.75 0 01.75.75v5.25a.75.75 0 01-.75.75h-1.5a.75.75 0 01-.75-.75V15zM4.5 19.5v-1.5h15v1.5a1.5 1.5 0 01-1.5 1.5H6a1.5 1.5 0 01-1.5-1.5zM6 15v3h3v-3H6z" />
+                    <path
+                      d="M5 3a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V7.414a1 1 0 00-.293-.707l-2.414-2.414A1 1 0 0017.586 3H5zm2 2h10v2H7V5zm0 4h10v2H7V9zm0 4h7v2H7v-2z"
+                      fillRule="evenodd"
+                    />
+                  </svg>
+                  Save as Draft
+                </>
+              )}
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!content || isSaving || isSaved}
+              className={`flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
+                isSaved
+                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                  : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-black dark:text-zinc-300 dark:hover:bg-zinc-900"
+              }`}
+            >
+              {isSaving ? (
+                <>
+                  <svg
+                    className="h-4 w-4 animate-spin"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Saving...
+                </>
+              ) : isSaved ? (
+                <>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    className="h-4 w-4"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Saved
+                </>
+              ) : (
+                <>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    className="h-4 w-4"
+                  >
+                    <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.965 3.129V2.75z" />
+                    <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
+                  </svg>
+                  Save Content
+                </>
+              )}
+            </button>
+          </>
+        )} */}
       </div>
 
       <Toast

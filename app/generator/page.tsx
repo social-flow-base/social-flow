@@ -314,6 +314,7 @@ function GeneratorContent() {
                 connectedUsernames={connectedUsernames}
                 onDisconnect={handleDisconnect}
                 onConnect={handleConnect}
+                isConnected={!!account}
               />
 
               <button

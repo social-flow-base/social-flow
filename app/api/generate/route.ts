@@ -33,6 +33,7 @@ export async function POST(req: Request) {
     const result = await model.generateContent([
       systemInstruction,
       "IMPORTANT: Detect the language of the 'User Input'. The 'Enhanced Prompt' or generated content MUST be in the SAME language as the 'User Input'.",
+      "STRICT OUTPUT RULES: 1. Do NOT include any conversational filler (e.g., 'Okay', 'Here is', 'Sure'). 2. Output ONLY the generated content. 3. Generate a SINGLE best option. Do NOT provide multiple options or variations. 4. Do NOT use markdown lists or bullet points unless explicitly asked.",
       lengthConstraint,
       `Target Platform: ${platform}`,
       `User Input: ${prompt}\n\nEnhanced Prompt:`,

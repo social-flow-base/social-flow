@@ -27,6 +27,16 @@ export function Header() {
               Generator
             </Link>
             <Link
+              href="/posts"
+              className={`text-sm font-medium transition-colors ${
+                isActive("/posts")
+                  ? "text-blue-600 dark:text-blue-400"
+                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+              }`}
+            >
+              Posts
+            </Link>
+            {/* <Link
               href="/saved"
               className={`text-sm font-medium transition-colors ${
                 isActive("/saved")
@@ -35,7 +45,7 @@ export function Header() {
               }`}
             >
               Saved
-            </Link>
+            </Link> */}
             <Link
               href="/transactions"
               className={`text-sm font-medium transition-colors ${
