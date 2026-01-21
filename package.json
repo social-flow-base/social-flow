@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@getlatedev/node": "^0.1.1",
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.90.1",
     "clsx": "^2.1.1",
@@ -18,9 +19,7 @@
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0",
     "tailwind-merge": "^3.4.0",
-    "thirdweb": "^5.117.2",
-    "twitter-api-v2": "^1.29.0",
-    "x402": "^1.1.0"
+    "thirdweb": "^5.117.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -7,10 +7,9 @@ export async function GET(request: NextRequest) {
   const profileIdParam = searchParams.get("profileId");
 
   // Check if connection was successful
-  // Late redirects with ?connected=twitter (or similar)
   if (!connected) {
     return NextResponse.redirect(
-      new URL("/generator?error=twitter_connection_failed", request.url),
+      new URL("/generator?error=threads_connection_failed", request.url),
     );
   }
 
@@ -19,56 +18,54 @@ export async function GET(request: NextRequest) {
     profileIdParam || request.cookies.get("late_profile_id")?.value;
 
   if (!profileId) {
-    // If we don't have profileId, we can't look up the account.
-    // But if 'connected' is present, the connection happened.
     return NextResponse.json({ error: "Profile ID missing" }, { status: 400 });
   }
 
   try {
     const late = getLateClient();
 
-    // List accounts to find the new Twitter account
+    // List accounts to find the new Threads account
     const { data: accountsData } = await late.accounts.listAccounts({
       query: { profileId },
     });
 
-    const twitterAccount = accountsData?.accounts?.find(
-      (acc) => acc.platform === "twitter",
+    const threadsAccount = accountsData?.accounts?.find(
+      (acc) => acc.platform === "threads",
     );
 
-    if (!twitterAccount) {
+    if (!threadsAccount) {
       return NextResponse.redirect(
-        new URL("/generator?error=twitter_account_not_found", request.url),
+        new URL("/generator?error=threads_account_not_found", request.url),
       );
     }
 
     const response = NextResponse.redirect(
-      new URL("/generator?connected=true&platform=twitter", request.url),
+      new URL("/generator?connected=true&platform=threads", request.url),
     );
 
     // Set cookies for UI and future use
-    response.cookies.set("twitter_is_connected", "true", {
+    response.cookies.set("threads_is_connected", "true", {
       httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
     });
 
-    response.cookies.set("twitter_username", twitterAccount.username || "", {
+    response.cookies.set("threads_username", threadsAccount.username || "", {
       httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
     });
 
-    response.cookies.set("twitter_account_id", twitterAccount._id || "", {
+    response.cookies.set("threads_account_id", threadsAccount._id || "", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
     });
 
-    // Ensure profile cookies is set if we got it from params
+    // Ensure profile cookies is set
     if (profileIdParam && !request.cookies.get("late_profile_id")) {
       response.cookies.set("late_profile_id", profileIdParam, {
         httpOnly: true,
@@ -80,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error("Error in Twitter callback:", error);
+    console.error("Error in Threads callback:", error);
     return NextResponse.redirect(
       new URL("/generator?error=callback_error", request.url),
     );

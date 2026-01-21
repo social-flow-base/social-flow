@@ -7,14 +7,19 @@ export async function POST(request: NextRequest) {
 
   if (platform === "twitter") {
     // Clear all Twitter-related cookies
-    response.cookies.delete("twitter_access_token");
-    response.cookies.delete("twitter_refresh_token");
     response.cookies.delete("twitter_is_connected");
     response.cookies.delete("twitter_username");
-    // Also clear the OAuth state cookies if they exist
-    response.cookies.delete("twitter_oauth_state");
-    response.cookies.delete("twitter_code_verifier");
+    response.cookies.delete("twitter_account_id");
+  } else if (platform === "threads") {
+    // Clear all Threads-related cookies
+    response.cookies.delete("threads_is_connected");
+    response.cookies.delete("threads_username");
+    response.cookies.delete("threads_account_id");
   }
+
+  // We do NOT delete late_profile_id because it might be used for other platforms
+  // If we wanted to fully reset:
+  // response.cookies.delete("late_profile_id");
 
   return response;
 }

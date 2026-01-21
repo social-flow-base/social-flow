@@ -49,7 +49,7 @@ function GeneratorContent() {
     linkedin: `You are a professional LinkedIn content creator. Create detailed, insightful posts that focus on industry trends, professional development, and business value. Use a professional yet engaging tone. Include relevant hashtags and structure the post for maximum readability.`,
     instagram: `You are an Instagram content expert. Create visually descriptive and engaging captions. Use emojis, a casual and fun tone, and include a mix of popular and niche hashtags. Focus on storytelling and encouraging audience interaction.`,
     threads: `You are a Threads enthusiast. Create short, conversational, and punchy posts that spark discussion. Keep it concise, authentic, and slightly informal. Encourage replies and engagement.`,
-    twitter: `You are a Twitter power user. Create short, punchy tweets (under 280 characters). Use threads if necessary but keep individual tweets concise. Use high-impact words and trending hashtags. Focus on viral potential.`,
+    twitter: `You are a Twitter power user. Create a single, punchy tweet. STRICTLY under 280 characters. Do NOT use threads. Focus on viral potential.`,
   });
 
   const account = useActiveAccount();
@@ -177,21 +177,37 @@ function GeneratorContent() {
         }
       }
 
-      // 2. Check Supabase (DB)
-      if (account?.address) {
-        const { data, error } = await supabase
-          .from("user_connections")
-          .select("platform")
-          .eq("wallet_address", account.address);
+      // Check Threads Cookies
+      const isThreadsConnected = cookies.find((row) =>
+        row.startsWith("threads_is_connected="),
+      );
+      const threadsUsernameCookie = cookies.find((row) =>
+        row.startsWith("threads_username="),
+      );
 
-        if (!error && data) {
-          data.forEach((c) => {
-            if (!platforms.includes(c.platform)) {
-              platforms.push(c.platform);
-            }
-          });
+      if (isThreadsConnected) {
+        platforms.push("threads");
+        if (threadsUsernameCookie) {
+          usernames["threads"] = decodeURIComponent(
+            threadsUsernameCookie.split("=")[1],
+          );
         }
       }
+
+      // 2. Check Supabase (DB) - REMOVED as per request
+      // if (account?.address) {
+      //   const { data, error } = await supabase
+      //     .from("user_connections")
+      //     .select("platform")
+      //     .eq("wallet_address", account.address);
+      //   if (!error && data) {
+      //     data.forEach((c) => {
+      //       if (!platforms.includes(c.platform)) {
+      //         platforms.push(c.platform);
+      //       }
+      //     });
+      //   }
+      // }
 
       setConnectedPlatforms(platforms);
       setConnectedUsernames(usernames);
@@ -258,6 +274,10 @@ function GeneratorContent() {
     }
   };
 
+  const handleConnect = (platform: string) => {
+    window.location.href = `/api/auth/${platform}`;
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-black">
       <Header />
@@ -293,6 +313,7 @@ function GeneratorContent() {
                 connectedPlatforms={connectedPlatforms}
                 connectedUsernames={connectedUsernames}
                 onDisconnect={handleDisconnect}
+                onConnect={handleConnect}
               />
 
               <button

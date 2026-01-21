@@ -12,6 +12,7 @@ interface PlatformSelectorProps {
   connectedPlatforms?: string[];
   connectedUsernames?: Record<string, string>;
   onDisconnect?: (platform: string) => void;
+  onConnect?: (platform: string) => void;
 }
 
 const platforms = [
@@ -59,15 +60,15 @@ const platforms = [
     label: "Threads",
     icon: (
       <svg
+        aria-label="Threads"
+        viewBox="0 0 192 192"
         xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
         fill="currentColor"
         className="h-6 w-6"
       >
         <path
-          fillRule="evenodd"
-          d="M12.75 9.176A3.004 3.004 0 009.68 12a3.004 3.004 0 003.076 2.824c.776 0 1.488-.308 2-.806v.774c0 1.487-1.168 2.032-2.122 2.032-1.928 0-2.828-1.3-2.828-3.056V11.2a7.614 7.614 0 017.584-7.643c4.276 0 7.576 3.4 7.576 7.683 0 4.604-3.528 7.76-8.24 7.76-4.632 0-7.892-3.112-7.892-7.66C8.832 6.58 11.996 3.5 16.036 3.5c1.676 0 3.208.544 4.384 1.464l1.1-1.38A8.832 8.832 0 0016.036 1.7C10.968 1.7 6.94 5.568 6.94 11.34c0 5.688 4.096 9.46 9.696 9.46 5.864 0 10.24-3.876 10.24-9.56 0-5.188-4.1-9.38-9.332-9.38-5.152 0-9.284 4.076-9.284 9.336 0 2.664.996 4.968 4.416 4.968 2.924 0 3.824-2.108 3.824-3.72v-1.124a4.708 4.708 0 01-3.75 1.796zm.132-5.748c1.692 0 2.9.992 2.9 2.88 0 1.832-1.208 2.82-2.9 2.82-1.748 0-2.956-1.024-2.956-2.82 0-1.744 1.18-2.88 2.956-2.88z"
-          clipRule="evenodd"
+          className="x19hqcy"
+          d="M141.537 88.9883C140.71 88.5919 139.87 88.2104 139.019 87.8451C137.537 60.5382 122.616 44.905 97.5619 44.745C97.4484 44.7443 97.3355 44.7443 97.222 44.7443C82.2364 44.7443 69.7731 51.1409 62.102 62.7807L75.881 72.2328C81.6116 63.5383 90.6052 61.6848 97.2286 61.6848C97.3051 61.6848 97.3819 61.6848 97.4576 61.6855C105.707 61.7381 111.932 64.1366 115.961 68.814C118.893 72.2193 120.854 76.925 121.825 82.8638C114.511 81.6207 106.601 81.2385 98.145 81.7233C74.3247 83.0954 59.0111 96.9879 60.0396 116.292C60.5615 126.084 65.4397 134.508 73.775 140.011C80.8224 144.663 89.899 146.938 99.3323 146.423C111.79 145.74 121.563 140.987 128.381 132.296C133.559 125.696 136.834 117.143 138.28 106.366C144.217 109.949 148.617 114.664 151.047 120.332C155.179 129.967 155.42 145.8 142.501 158.708C131.182 170.016 117.576 174.908 97.0135 175.059C74.2042 174.89 56.9538 167.575 45.7381 153.317C35.2355 139.966 29.8077 120.682 29.6052 96C29.8077 71.3178 35.2355 52.0336 45.7381 38.6827C56.9538 24.4249 74.2039 17.11 97.0132 16.9405C119.988 17.1113 137.539 24.4614 149.184 38.788C154.894 45.8136 159.199 54.6488 162.037 64.9503L178.184 60.6422C174.744 47.9622 169.331 37.0357 161.965 27.974C147.036 9.60668 125.202 0.195148 97.0695 0H96.9569C68.8816 0.19447 47.2921 9.6418 32.7883 28.0793C19.8819 44.4864 13.2244 67.3157 13.0007 95.9325L13 96L13.0007 96.0675C13.2244 124.684 19.8819 147.514 32.7883 163.921C47.2921 182.358 68.8816 191.806 96.9569 192H97.0695C122.03 191.827 139.624 185.292 154.118 170.811C173.081 151.866 172.51 128.119 166.26 113.541C161.776 103.087 153.227 94.5962 141.537 88.9883ZM98.4405 129.507C88.0005 130.095 77.1544 125.409 76.6196 115.372C76.2232 107.93 81.9158 99.626 99.0812 98.6368C101.047 98.5234 102.976 98.468 104.871 98.468C111.106 98.468 116.939 99.0737 122.242 100.233C120.264 124.935 108.662 128.946 98.4405 129.507Z"
         />
       </svg>
     ),
@@ -100,6 +101,7 @@ export function PlatformSelector({
   connectedPlatforms = [],
   connectedUsernames = {},
   onDisconnect,
+  onConnect,
 }: PlatformSelectorProps) {
   return (
     <div>
@@ -155,10 +157,10 @@ export function PlatformSelector({
       />
       <div className="grid grid-cols-2 gap-6 sm:grid-cols-4 mt-3">
         {platforms.map((platform) => (
-          <button
+          <div
             key={platform.id}
             onClick={() => onSelect(platform.id)}
-            className={`flex flex-col items-center justify-center gap-2 rounded-xl border p-4 transition-all hover:bg-zinc-50 dark:hover:bg-zinc-900 relative group ${
+            className={`flex flex-col items-center justify-center gap-2 rounded-xl border p-4 transition-all hover:bg-zinc-50 dark:hover:bg-zinc-900 relative group cursor-pointer ${
               selected === platform.id
                 ? "border-blue-500 ring-1 ring-blue-500 bg-blue-50/50 dark:bg-blue-900/20"
                 : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black"
@@ -172,8 +174,8 @@ export function PlatformSelector({
                       e.stopPropagation();
                       onDisconnect(platform.id);
                     }}
-                    className="flex h-5 w-5 items-center justify-center rounded-full bg-red-100 hover:bg-red-200 text-red-600 transition-colors cursor-pointer"
-                    title="Disconnect"
+                    className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200 transition-colors cursor-pointer"
+                    title="Sign Out"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -181,7 +183,16 @@ export function PlatformSelector({
                       fill="currentColor"
                       className="h-3 w-3"
                     >
-                      <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                      <path
+                        fillRule="evenodd"
+                        d="M3 4.25A2.25 2.25 0 015.25 2h5.5A2.25 2.25 0 0113 4.25v2a.75.75 0 01-1.5 0v-2a.75.75 0 00-.75-.75h-5.5a.75.75 0 00-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 00.75-.75v-2a.75.75 0 011.5 0v2A2.25 2.25 0 0110.75 18h-5.5A2.25 2.25 0 013 15.75V4.25z"
+                        clipRule="evenodd"
+                      />
+                      <path
+                        fillRule="evenodd"
+                        d="M19 10a.75.75 0 00-.75-.75H8.704l1.048-.943a.75.75 0 10-1.004-1.114l-2.5 2.25a.75.75 0 000 1.114l2.5 2.25a.75.75 0 101.004-1.114l-1.048-.943h9.546A.75.75 0 0019 10z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                   </div>
                 )}
@@ -201,12 +212,25 @@ export function PlatformSelector({
             >
               {platform.label}
             </span>
-            {connectedUsernames[platform.id] && (
+            {connectedUsernames[platform.id] ? (
               <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
                 @{connectedUsernames[platform.id]}
               </span>
+            ) : (
+              onConnect &&
+              !connectedPlatforms.includes(platform.id) && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onConnect(platform.id);
+                  }}
+                  className="mt-1 rounded-md bg-blue-600 px-3 py-1 text-[10px] font-medium text-white shadow-sm hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                >
+                  Connect
+                </button>
+              )
             )}
-          </button>
+          </div>
         ))}
       </div>
     </div>

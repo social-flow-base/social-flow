@@ -25,12 +25,10 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Get Connect URL
-    // Ensure we use the correct origin. In dev, assume localhost:3000 if request.url isn't reliable?
-    // request.url is usually reliable in Next.js middleware/routes.
-    const callbackPath = "/api/auth/twitter/callback";
+    const callbackPath = "/api/auth/threads/callback";
     const requestOrigin = new URL(request.url).origin;
 
-    // Fallback to localhost:3000 if origin seems empty (unlikely)
+    // Fallback to localhost:3000 if origin seems empty
     const baseUrl =
       requestOrigin && requestOrigin !== "null"
         ? requestOrigin
@@ -38,14 +36,17 @@ export async function GET(request: NextRequest) {
 
     const redirectUrl = new URL(callbackPath, baseUrl).toString();
 
-    console.log("Generating Late Connect URL with redirect:", redirectUrl);
+    console.log(
+      "Generating Late Connect URL for Threads with redirect:",
+      redirectUrl,
+    );
 
     const { data: connectData } = await late.connect.getConnectUrl({
-      path: { platform: "twitter" },
+      path: { platform: "threads" },
       query: {
         profileId,
-        redirectUrl, // SDK expects camelCase
-        // @ts-ignore - sending snake_case just in case API expects it and SDK definition is loose
+        redirectUrl,
+        // @ts-ignore
         redirect_url: redirectUrl,
       },
     });
@@ -68,9 +69,9 @@ export async function GET(request: NextRequest) {
 
     return response;
   } catch (error: any) {
-    console.error("Late Auth Error:", error);
+    console.error("Late Auth Error (Threads):", error);
     return NextResponse.json(
-      { error: error.message || "Failed to initiate Twitter connection" },
+      { error: error.message || "Failed to initiate Threads connection" },
       { status: 500 },
     );
   }

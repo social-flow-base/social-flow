@@ -1,16 +1,11 @@
-import {
-  connectToPlatform,
-  postContent,
-  openTwitterIntent,
-} from "@/lib/social";
+import { client } from "@/lib/client";
 import { Toast } from "@/components/ui/Toast";
 import { supabase } from "@/supabase/client";
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { prepareTransaction, toWei } from "thirdweb";
-import { useSendTransaction, useActiveAccount } from "thirdweb/react";
 import { defineChain } from "thirdweb/chains";
-import { client } from "@/app/client";
+import { useActiveAccount, useSendTransaction } from "thirdweb/react";
 
 interface PreviewPanelProps {
   content?: string;
@@ -36,7 +31,10 @@ export function PreviewPanel({
   const [isWindowFocused, setIsWindowFocused] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
-  const [isPosting, setIsPosting] = useState(false);
+  const [postingType, setPostingType] = useState<
+    null | "immediate" | "scheduled"
+  >(null);
+  const isPosting = postingType !== null;
 
   // Payment State
   const [isPaid, setIsPaid] = useState(false);
@@ -59,8 +57,54 @@ export function PreviewPanel({
     setIsPaid(false); // New content requires new payment
   }, [content]);
 
-  const handlePost = async () => {
+  const [selectedOption, setSelectedOption] = useState(0);
+  const [parsedOptions, setParsedOptions] = useState<string[]>([]);
+  const [isScheduling, setIsScheduling] = useState(false);
+  const [scheduleTime, setScheduleTime] = useState("");
+
+  useEffect(() => {
+    if (!content) {
+      setParsedOptions([]);
+      return;
+    }
+
+    // Split patterns: "Tweet 1:", "Option 1:", "Variation 1:", "Tweet 1 (Thread starter):"
+    const splitPattern =
+      /(?:^|\n)(?=Tweet\s+\d+|Option\s+\d+|Variation\s+\d+)/i;
+    const parts = content
+      .split(splitPattern)
+      .filter((p) => p.trim().length > 0);
+
+    // Filter only those that actually look like options and clean them
+    const potentialOptions = parts
+      .filter((p) => /^(?:Tweet|Option|Variation)\s+\d+/i.test(p.trim()))
+      .map((p) => {
+        // Remove the header (e.g., "Tweet 1:" or "Tweet 1 (Thread starter):")
+        // We look for the first colon and take everything after it
+        const match = p.match(
+          /^(?:Tweet|Option|Variation)\s+\d+.*?:([\s\S]*)/i,
+        );
+        return match ? match[1].trim() : p.trim();
+      });
+
+    if (potentialOptions.length > 1) {
+      setParsedOptions(potentialOptions);
+      setSelectedOption(0);
+    } else {
+      setParsedOptions([]);
+    }
+  }, [content]);
+
+  // ... existing code ...
+
+  const handlePost = async (scheduledForDate?: string) => {
     if (!platform || !content) return;
+
+    // Use selected option if available, otherwise full content
+    const contentToPost =
+      parsedOptions.length > 0 && parsedOptions[selectedOption]
+        ? parsedOptions[selectedOption]
+        : content;
 
     if (!activeAccount) {
       setToast({
@@ -71,26 +115,89 @@ export function PreviewPanel({
       return;
     }
 
-    // 1. Check if Twitter is connected (Client-side intent doesn't strictly need auth, but good for UX)
-    // Actually, for Intent-based, we don't STRICTLY need the app connected, but let's keep the flow consistent.
+    // Check if platform is connected
+    if (!isPlatformConnected) {
+      setToast({
+        show: true,
+        message: `Redirecting to connect ${platform}...`,
+        type: "success",
+      });
 
-    // 2. Check for Payment
-    if (!isPaid) {
-      handlePayment();
+      // Save state for auto-recovery
+      localStorage.setItem(
+        "pending_post",
+        JSON.stringify({
+          content,
+          prompt,
+          platform,
+        }),
+      );
+
+      // Redirect to auth
+      setTimeout(() => {
+        window.location.href = `/api/auth/${platform}`;
+      }, 1000);
       return;
     }
 
-    // 3. Execute Post (Intent)
-    openTwitterIntent(content);
-    setToast({
-      show: true,
-      message: "Opening Twitter to post...",
-      type: "success",
-    });
+    // Hardcode limit check for Twitter
+    if (platform === "twitter" && contentToPost.length > 280) {
+      setToast({
+        show: true,
+        message: `Tweet is too long (${contentToPost.length}/280). Please shorten it.`,
+        type: "error",
+      });
+      return;
+    }
+
+    // 1. Execute Post (API)
+    setPostingType(scheduledForDate ? "scheduled" : "immediate");
+    try {
+      const response = await fetch("/api/post", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          platform,
+          content: contentToPost,
+          scheduledFor: scheduledForDate,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to post");
+      }
+
+      setToast({
+        show: true,
+        message: scheduledForDate
+          ? "Post scheduled successfully!"
+          : "Posted successfully! (Payment skipped for testing)",
+        type: "success",
+      });
+
+      setPostingType(null);
+      setIsScheduling(false);
+      setScheduleTime("");
+
+      // 2. Trigger Payment after successful post
+      // handlePayment();
+    } catch (error: any) {
+      console.error("Post error:", error);
+      setToast({
+        show: true,
+        message: error.message || "Failed to post",
+        type: "error",
+      });
+      setPostingType(null);
+    }
   };
 
   const handlePayment = async () => {
-    setIsPosting(true);
+    setPostingType("immediate");
 
     const transaction = prepareTransaction({
       to:
@@ -105,7 +212,7 @@ export function PreviewPanel({
       sendTransaction(transaction, {
         onSuccess: async (tx) => {
           setIsPaid(true);
-          setIsPosting(false);
+          setPostingType(null);
 
           // Record transaction
           try {
@@ -129,16 +236,13 @@ export function PreviewPanel({
 
           setToast({
             show: true,
-            message: "Payment successful! Opening Twitter...",
+            message: "Payment successful! Thank you.",
             type: "success",
           });
-
-          // Auto-trigger post after payment
-          setTimeout(() => openTwitterIntent(content!), 500);
         },
         onError: (error) => {
           console.error("Payment failed", error);
-          setIsPosting(false);
+          setPostingType(null);
           setToast({
             show: true,
             message: "Payment failed. Please try again.",
@@ -148,7 +252,7 @@ export function PreviewPanel({
       });
     } catch (error) {
       console.error("Transaction preparation failed", error);
-      setIsPosting(false);
+      setPostingType(null);
       setToast({
         show: true,
         message: "Failed to initiate payment",
@@ -212,7 +316,7 @@ export function PreviewPanel({
   };
 
   useEffect(() => {
-    return; // Disabled for now
+    // Disabled for now as per previous logic, or kept minimal
     const handleFocus = () => setIsWindowFocused(true);
     const handleBlur = () => setIsWindowFocused(false);
 
@@ -226,47 +330,9 @@ export function PreviewPanel({
   }, []);
 
   useEffect(() => {
-    return; // Disabled for now
-    // Disable right-click
-    const handleContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
-    };
-
-    // Disable keyboard shortcuts
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // F12
-      if (e.key === "F12") {
-        e.preventDefault();
-      }
-      // Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        e.shiftKey &&
-        (e.key === "I" || e.key === "J" || e.key === "C")
-      ) {
-        e.preventDefault();
-      }
-      // Ctrl+U
-      if ((e.ctrlKey || e.metaKey) && e.key === "U") {
-        e.preventDefault();
-      }
-    };
-
-    document.addEventListener("contextmenu", handleContextMenu);
-    document.addEventListener("keydown", handleKeyDown);
-
-    // Debugger trap
-    const interval = setInterval(() => {
-      (function () {
-        debugger;
-      })();
-    }, 100);
-
-    return () => {
-      document.removeEventListener("contextmenu", handleContextMenu);
-      document.removeEventListener("keydown", handleKeyDown);
-      clearInterval(interval);
-    };
+    // Debugger and shortcut logic - disabled for now to keep it clean or enable if needed
+    // Keeping empty for now as requested by user context potentially
+    return;
   }, []);
 
   return (
@@ -385,61 +451,14 @@ export function PreviewPanel({
 
       <div className="border-t border-zinc-100 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <button
-          onClick={handlePost}
-          disabled={!content || isPosting}
+          onClick={() => handlePost()}
+          disabled={!content || isPosting || isScheduling}
           className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-700"
         >
-          {isPosting ? (
-            <svg
-              className="h-4 w-4 animate-spin text-white"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-                fill="none"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
-          ) : (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="h-4 w-4"
-            >
-              <path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.925A1.5 1.5 0 004.886 9.25L10.25 10 4.886 10.75a1.5 1.5 0 00-1.193 1.086L2.279 16.76a.75.75 0 00.826.95l14.25-7.125a.75.75 0 000-1.342L3.105 2.289z" />
-            </svg>
-          )}
-          {isPosting
-            ? "Processing..."
-            : !isPlatformConnected
-              ? "Connect & Post"
-              : !isPaid
-                ? "Pay & Post (0.0001 ETH)"
-                : "Post Now"}
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={!content || isSaving || isSaved}
-          className={`flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
-            isSaved
-              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-              : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-black dark:text-zinc-300 dark:hover:bg-zinc-900"
-          }`}
-        >
-          {isSaving ? (
+          {postingType === "immediate" ? (
             <>
               <svg
-                className="h-4 w-4 animate-spin"
+                className="h-4 w-4 animate-spin text-white"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -458,39 +477,235 @@ export function PreviewPanel({
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 ></path>
               </svg>
-              Saving...
-            </>
-          ) : isSaved ? (
-            <>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                className="h-4 w-4"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              Saved
+              Processing...
             </>
           ) : (
             <>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
+                viewBox="0 0 24 24"
                 fill="currentColor"
                 className="h-4 w-4"
               >
-                <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.965 3.129V2.75z" />
-                <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
+                <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
               </svg>
-              Save Content
+              {!isPlatformConnected ? "Connect & Post" : "Post Now"}
             </>
           )}
         </button>
+
+        {isPlatformConnected && (
+          <div className="mb-3">
+            {isScheduling ? (
+              <div className="flex flex-col gap-2 rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-800">
+                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  Select Date & Time
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <input
+                      type="date"
+                      value={
+                        scheduleTime && scheduleTime.includes("T")
+                          ? scheduleTime.split("T")[0]
+                          : scheduleTime || ""
+                      }
+                      onChange={(e) => {
+                        const newDate = e.target.value;
+                        const currentParts = scheduleTime
+                          ? scheduleTime.split("T")
+                          : [];
+                        const existingTime =
+                          currentParts.length > 1 && currentParts[1]
+                            ? currentParts[1]
+                            : "12:00";
+                        setScheduleTime(`${newDate}T${existingTime}`);
+                      }}
+                      className="w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-zinc-600 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="time"
+                      value={
+                        scheduleTime && scheduleTime.includes("T")
+                          ? scheduleTime.split("T")[1]?.slice(0, 5)
+                          : ""
+                      }
+                      onChange={(e) => {
+                        const newTime = e.target.value;
+                        const currentParts = scheduleTime
+                          ? scheduleTime.split("T")
+                          : [];
+                        const existingDate =
+                          currentParts.length > 0 && currentParts[0]
+                            ? currentParts[0]
+                            : new Date().toISOString().split("T")[0];
+                        setScheduleTime(`${existingDate}T${newTime}`);
+                      }}
+                      className="w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-zinc-600 dark:text-white"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setIsScheduling(false);
+                      setScheduleTime("");
+                    }}
+                    className="flex-1 rounded-lg border border-zinc-200 py-2 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      try {
+                        if (!scheduleTime) return;
+                        const date = new Date(scheduleTime);
+                        if (isNaN(date.getTime())) {
+                          setToast({
+                            show: true,
+                            message: "Please select a valid date and time",
+                            type: "error",
+                          });
+                          return;
+                        }
+                        handlePost(date.toISOString());
+                      } catch (e) {
+                        console.error("Invalid date:", e);
+                        setToast({
+                          show: true,
+                          message: "Invalid date selection",
+                          type: "error",
+                        });
+                      }
+                    }}
+                    disabled={
+                      !scheduleTime || !scheduleTime.includes("T") || isPosting
+                    }
+                    className="flex-1 rounded-lg bg-blue-600 py-2 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {postingType === "scheduled" ? (
+                      <>
+                        <svg
+                          className="h-3 w-3 animate-spin text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        Scheduling...
+                      </>
+                    ) : (
+                      "Confirm Schedule"
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsScheduling(true)}
+                disabled={!content || isPosting}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 py-3.5 text-sm font-semibold text-blue-700 shadow-sm transition-all hover:bg-blue-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="h-4 w-4 text-blue-500"
+                >
+                  <path d="M5.25 12a.75.75 0 01.75-.75h.01a.75.75 0 01.75.75v.01a.75.75 0 01-.75.75H6a.75.75 0 01-.75-.75V12zM6 13.25a.75.75 0 00-.75.75v.01c0 .414.336.75.75.75h.01a.75.75 0 00.75-.75V14a.75.75 0 00-.75-.75H6zM7.25 12a.75.75 0 01.75-.75h.01a.75.75 0 01.75.75v.01a.75.75 0 01-.75.75H8a.75.75 0 01-.75-.75V12zM8 13.25a.75.75 0 00-.75.75v.01c0 .414.336.75.75.75h.01a.75.75 0 00.75-.75V14a.75.75 0 00-.75-.75H8zM9.25 10a.75.75 0 01.75-.75h.01a.75.75 0 01.75.75v.01a.75.75 0 01-.75.75H10a.75.75 0 01-.75-.75V10zM10 11.25a.75.75 0 00-.75.75v.01c0 .414.336.75.75.75h.01a.75.75 0 00.75-.75V12a.75.75 0 00-.75-.75H10zM9.25 14a.75.75 0 01.75-.75h.01a.75.75 0 01.75.75v.01a.75.75 0 01-.75.75H10a.75.75 0 01-.75-.75V14zM12 9.25a.75.75 0 00-.75.75v.01c0 .414.336.75.75.75h.01a.75.75 0 00.75-.75V10a.75.75 0 00-.75-.75H12zM11.25 12a.75.75 0 01.75-.75h.01a.75.75 0 01.75.75v.01a.75.75 0 01-.75.75H12a.75.75 0 01-.75-.75V12zM12 13.25a.75.75 0 00-.75.75v.01c0 .414.336.75.75.75h.01a.75.75 0 00.75-.75V14a.75.75 0 00-.75-.75H12zM13.25 10a.75.75 0 01.75-.75h.01a.75.75 0 01.75.75v.01a.75.75 0 01-.75.75H14a.75.75 0 01-.75-.75V10zM14 11.25a.75.75 0 00-.75.75v.01c0 .414.336.75.75.75h.01a.75.75 0 00.75-.75V12a.75.75 0 00-.75-.75H14z" />
+                  <path
+                    fillRule="evenodd"
+                    d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Schedule Post
+              </button>
+            )}
+          </div>
+        )}
+
+        {isPlatformConnected && (
+          <button
+            onClick={handleSave}
+            disabled={!content || isSaving || isSaved}
+            className={`flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
+              isSaved
+                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-black dark:text-zinc-300 dark:hover:bg-zinc-900"
+            }`}
+          >
+            {isSaving ? (
+              <>
+                <svg
+                  className="h-4 w-4 animate-spin"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Saving...
+              </>
+            ) : isSaved ? (
+              <>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="h-4 w-4"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Saved
+              </>
+            ) : (
+              <>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="h-4 w-4"
+                >
+                  <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.965 3.129V2.75z" />
+                  <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
+                </svg>
+                Save Content
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       <Toast

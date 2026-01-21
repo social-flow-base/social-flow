@@ -8,7 +8,7 @@ import ReactMarkdown from "react-markdown";
 import { prepareTransaction, toWei } from "thirdweb";
 import { useSendTransaction, useActiveAccount } from "thirdweb/react";
 import { defineChain } from "thirdweb/chains";
-import { client } from "@/app/client";
+import { client } from "@/lib/client";
 import { AlertModal } from "@/components/ui/AlertModal";
 import { ContentDetailModal } from "@/components/ui/ContentDetailModal";
 import { Toast } from "@/components/ui/Toast";

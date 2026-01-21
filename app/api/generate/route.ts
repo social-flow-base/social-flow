@@ -4,6 +4,13 @@ import { NextResponse } from "next/server";
 const apiKey = process.env.GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey!);
 
+const MAX_LENGTH_CONTENT = {
+  TWITTER: 280,
+  INSTAGRAM: 280,
+  THREADS: 280,
+  LINKEDIN: 280,
+};
+
 export async function POST(req: Request) {
   try {
     const { prompt, platform, systemInstruction } = await req.json();
@@ -17,9 +24,16 @@ export async function POST(req: Request) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
+    const limit =
+      MAX_LENGTH_CONTENT[
+        platform?.toUpperCase() as keyof typeof MAX_LENGTH_CONTENT
+      ];
+    const lengthConstraint = limit ? `Max with ${limit} char length.` : "";
+
     const result = await model.generateContent([
       systemInstruction,
       "IMPORTANT: Detect the language of the 'User Input'. The 'Enhanced Prompt' or generated content MUST be in the SAME language as the 'User Input'.",
+      lengthConstraint,
       `Target Platform: ${platform}`,
       `User Input: ${prompt}\n\nEnhanced Prompt:`,
     ]);

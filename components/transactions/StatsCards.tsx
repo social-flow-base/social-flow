@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useActiveAccount, useWalletBalance } from "thirdweb/react";
 import { supabase } from "@/supabase/client";
 import { defineChain } from "thirdweb/chains";
-import { client } from "@/app/client";
+import { client } from "@/lib/client";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function StatsCards() {
