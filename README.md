@@ -6,7 +6,6 @@ Social Flow is an AI-powered platform designed to streamline social media conten
 
 - **AI Content Generation**: Leverage powerful AI to create engaging posts for various platforms.
 - **Multi-platform Support**: Currently supports Twitter and Threads.
-- **On-chain Transactions**: Secure post-to-earn or paid posting flows using Thirdweb integration.
 - **Post Management**: Manage your drafts, scheduled, and published posts in one dashboard.
 
 ## Getting Started
