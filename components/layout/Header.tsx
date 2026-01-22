@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ButtonConnectWallet } from "@/components/button-connect-wallet";
+import { UserAuthProfile } from "@/components/user-auth-profile";
 
 export function Header() {
   const pathname = usePathname();
@@ -58,7 +58,7 @@ export function Header() {
             </Link>
           </nav>
 
-          <ButtonConnectWallet />
+          <UserAuthProfile />
         </div>
       </div>
     </header>
