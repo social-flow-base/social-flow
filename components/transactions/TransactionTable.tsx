@@ -8,14 +8,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface Transaction {
   id: string;
   created_at: string;
-  platform: string; // derived from saved_content
+  chain: string; // was platform from saved_content
   token_symbol: string;
   amount: number;
   tx_hash: string;
   status: "success" | "pending" | "failed";
-  saved_content?: {
-    platform: string;
-  };
 }
 
 export function TransactionTable() {
@@ -44,14 +41,7 @@ export function TransactionTable() {
       if (user) {
         let dbQuery = supabase
           .from("transactions")
-          .select(
-            `
-            *,
-            saved_content (
-              platform
-            )
-          `,
-          )
+          .select("*")
           .eq("user_id", user.id);
 
         // Apply Status Filter
@@ -133,7 +123,7 @@ export function TransactionTable() {
             <thead className="border-b border-zinc-100 bg-zinc-50/50 text-xs font-medium uppercase text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-400">
               <tr>
                 <th className="px-6 py-4">Date</th>
-                <th className="px-6 py-4">Platform</th>
+                <th className="px-6 py-4">Chain</th>
                 <th className="px-6 py-4">Asset</th>
                 <th className="px-6 py-4">Amount</th>
                 <th className="px-6 py-4">Tx Hash</th>
@@ -195,7 +185,7 @@ export function TransactionTable() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <span className="capitalize text-zinc-900 dark:text-zinc-100">
-                          {tx.saved_content?.platform || "Unknown"}
+                          {tx.chain || "Unknown"}
                         </span>
                       </div>
                     </td>
