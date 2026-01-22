@@ -115,10 +115,10 @@ export function PreviewPanel({
         ? parsedOptions[selectedOption]
         : content;
 
-    if (!activeAccount) {
+    if (!isConnected) {
       setToast({
         show: true,
-        message: "Please connect wallet first",
+        message: "Please sign in with Google first",
         type: "error",
       });
       return;
@@ -236,16 +236,24 @@ export function PreviewPanel({
             const {
               data: { user },
             } = await supabase.auth.getUser();
-            if (user) {
+            if (user && activeAccount) {
               await supabase.from("transactions").insert({
                 user_id: user.id,
+                wallet_address: activeAccount.address,
+                chain: "base",
                 tx_hash: tx.transactionHash,
-                chain_id: 8453,
                 token_symbol: "ETH",
+                token_decimals: 18,
                 amount: 0.0001,
-                status: "success",
-                token_address: null,
+                credits_granted: 0, // Transaction used for posting, not buying credits directly here
               });
+
+              // Also update/select wallet to ensure it's marked as verified/active
+              await supabase
+                .from("wallets")
+                .update({ verified: true })
+                .eq("user_id", user.id)
+                .eq("address", activeAccount.address);
             }
           } catch (txErr) {
             console.error("Failed to record transaction:", txErr);
@@ -282,7 +290,7 @@ export function PreviewPanel({
     if (!isConnected) {
       setToast({
         show: true,
-        message: "Please connect your wallet to save draft",
+        message: "Please sign in with Google to save draft",
         type: "error",
       });
       return null;
@@ -335,7 +343,7 @@ export function PreviewPanel({
     if (!isConnected) {
       setToast({
         show: true,
-        message: "Please connect your wallet to save content",
+        message: "Please sign in with Google to save content",
         type: "error",
       });
       return null;
@@ -467,7 +475,7 @@ export function PreviewPanel({
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               {isConnected
                 ? "Describe your topic, choose a platform, and generate engaging content in seconds."
-                : "Connect your wallet and pay with crypto to unlock AI-powered content generation."}
+                : "Sign in with Google to unlock AI-powered content generation."}
             </p>
           </div>
         ) : (

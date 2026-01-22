@@ -4,6 +4,7 @@
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { AlertModal } from "@/components/ui/AlertModal";
+import { supabase } from "@/supabase/client";
 import { useEffect, useState, Suspense } from "react";
 import { format } from "date-fns";
 
@@ -146,6 +147,9 @@ function PostsContent() {
     | "threads"
     | "twitter"
     | null;
+  const [user, setUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [platformFilter, setPlatformFilter] = useState<
     "all" | "linkedin" | "threads" | "twitter"
   >(initialPlatformFilter || "all");
@@ -154,6 +158,31 @@ function PostsContent() {
   const [hasMore, setHasMore] = useState(true);
 
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
+
+  // Delete State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [postToDelete, setPostToDelete] = useState<Post | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Check Supabase session
+  useEffect(() => {
+    async function getSession() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setUser(user);
+      setAuthLoading(false);
+    }
+    getSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Fetch connected platforms from cookies
   useEffect(() => {
@@ -172,14 +201,18 @@ function PostsContent() {
     setConnectedPlatforms(platforms);
   }, []);
 
+  const handleSignIn = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin + pathname,
+      },
+    });
+  };
+
   const handleConnect = (platform: string) => {
     window.location.href = `/api/auth/${platform}`;
   };
-
-  // Delete State
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [postToDelete, setPostToDelete] = useState<Post | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDeleteClick = (post: Post) => {
     setPostToDelete(post);
@@ -217,32 +250,6 @@ function PostsContent() {
       setIsDeleting(false);
     }
   };
-
-  // Initial load and filter change
-  useEffect(() => {
-    // Sync URL with filter state
-    const current = new URLSearchParams(Array.from(searchParams.entries()));
-    if (filter === "all") {
-      current.delete("filter");
-    } else {
-      current.set("filter", filter);
-    }
-
-    if (platformFilter === "all") {
-      current.delete("platform");
-    } else {
-      current.set("platform", platformFilter);
-    }
-
-    const search = current.toString();
-    const query = search ? `?${search}` : "";
-    router.push(`${pathname}${query}`);
-
-    setPage(1);
-    setHasMore(true);
-    setPosts([]);
-    fetchPosts(1, true);
-  }, [filter, platformFilter]);
 
   const fetchPosts = async (pageNum: number, isReset: boolean = false) => {
     if (isReset) {
@@ -295,8 +302,38 @@ function PostsContent() {
     }
   };
 
+  // Initial load and filter change
+  useEffect(() => {
+    if (!user) return; // Don't fetch if not logged in
+
+    // Sync URL with filter state
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
+    if (filter === "all") {
+      current.delete("filter");
+    } else {
+      current.set("filter", filter);
+    }
+
+    if (platformFilter === "all") {
+      current.delete("platform");
+    } else {
+      current.set("platform", platformFilter);
+    }
+
+    const search = current.toString();
+    const query = search ? `?${search}` : "";
+    router.push(`${pathname}${query}`);
+
+    setPage(1);
+    setHasMore(true);
+    setPosts([]);
+    fetchPosts(1, true);
+  }, [filter, platformFilter, user?.id]);
+
   // Infinite Scroll Observer
   useEffect(() => {
+    if (!user) return; // Don't observe if not logged in
+
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasMore && !loading && !loadingMore) {
@@ -314,7 +351,85 @@ function PostsContent() {
     return () => {
       if (trigger) observer.unobserve(trigger);
     };
-  }, [page, hasMore, loading, loadingMore, filter, platformFilter]);
+  }, [page, hasMore, loading, loadingMore, filter, platformFilter, user?.id]);
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-black">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-black">
+        <Header />
+        <main className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
+          <div className="container mx-auto max-w-7xl">
+            <div className="rounded-xl border border-zinc-200 bg-white p-12 text-center dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="mx-auto max-w-sm space-y-4">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                    className="h-8 w-8 text-zinc-400"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
+                    />
+                  </svg>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-bold text-zinc-900 dark:text-white">
+                    Sign in to view posts
+                  </h3>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                    Please sign in with your Google account to manage and track
+                    your social media posts.
+                  </p>
+                </div>
+                <button
+                  onClick={handleSignIn}
+                  className="inline-flex w-full items-center justify-center gap-3 rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-semibold text-white transition-all hover:bg-blue-700 active:scale-[0.98]"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24">
+                    <path
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                      fill="#4285F4"
+                    />
+                    <path
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      fill="#34A853"
+                    />
+                    <path
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+                      fill="#FBBC05"
+                    />
+                    <path
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                      fill="#EA4335"
+                    />
+                  </svg>
+                  <span>Sign in with Google</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-black">

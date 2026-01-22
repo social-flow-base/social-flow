@@ -20,14 +20,15 @@ export function StatsCards() {
 
   useEffect(() => {
     async function fetchStats() {
-      if (!account) return;
-
       setIsLoading(true);
       try {
         const {
           data: { user },
         } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+          setIsLoading(false);
+          return;
+        }
 
         // Fetch transactions for stats
         const { data: transactions } = await supabase
@@ -61,7 +62,7 @@ export function StatsCards() {
     }
 
     fetchStats();
-  }, [account]);
+  }, []); // Remove account dependency, fetch on mount or when user changes if needed (Supabase listener handles session)
 
   // Hook for balance
   const { data: balanceData, isLoading: isBalanceLoading } = useWalletBalance({

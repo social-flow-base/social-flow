@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
         .from("user_credits")
         .select("credits_remaining")
         .eq("user_id", userId)
-        .single(),
+        .maybeSingle(),
     ]);
 
     return NextResponse.json({

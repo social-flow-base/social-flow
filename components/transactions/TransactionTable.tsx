@@ -35,11 +35,6 @@ export function TransactionTable() {
   }, [searchQuery]);
 
   const fetchTransactions = async () => {
-    // We need account check? If user is authenticated via Supabase auth, we typically rely on that.
-    // However, the original code had `if (!account) return;`
-    // Let's keep it but also ensure we have the supabase user.
-    if (!account) return;
-
     setIsLoading(true);
     try {
       const {
@@ -86,7 +81,7 @@ export function TransactionTable() {
 
   useEffect(() => {
     fetchTransactions();
-  }, [account, filter, debouncedSearch]);
+  }, [filter, debouncedSearch]); // Removed account dependency
 
   return (
     <div className="flex flex-col gap-4">

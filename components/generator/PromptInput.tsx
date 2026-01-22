@@ -27,7 +27,7 @@ export function PromptInput({
     if (!isConnected) {
       setToast({
         show: true,
-        message: "Please connect your wallet to use AI enhancement",
+        message: "Please sign in with Google to use AI enhancement",
         type: "error",
       });
       return;

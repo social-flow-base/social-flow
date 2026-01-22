@@ -96,11 +96,65 @@ function GeneratorContent() {
     }
   };
 
+  const [user, setUser] = useState<any>(null);
+  const [credits, setCredits] = useState<number | null>(null);
+
+  const fetchCredits = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/user/profile?userId=${userId}`);
+      const data = await res.json();
+      if (data.credits !== undefined) {
+        setCredits(data.credits);
+      }
+    } catch (err) {
+      console.error("Failed to fetch credits:", err);
+    }
+  };
+
+  useEffect(() => {
+    // Check Supabase session
+    async function getSession() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setUser(user);
+      if (user) {
+        fetchCredits(user.id);
+      }
+    }
+    getSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        fetchCredits(currentUser.id);
+      } else {
+        setCredits(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const isConnected = !!user;
+
   const handleGenerate = async () => {
-    if (!account) {
+    if (!isConnected) {
       setToast({
         show: true,
-        message: "Please connect your wallet to generate content",
+        message: "Please sign in with Google to generate content",
+        type: "error",
+      });
+      return;
+    }
+
+    if (credits !== null && credits <= 0) {
+      setToast({
+        show: true,
+        message: "You have 0 credits. Please top up to continue.",
         type: "error",
       });
       return;
@@ -121,6 +175,7 @@ function GeneratorContent() {
           prompt,
           platform: selectedPlatform,
           systemInstruction: systemInstructions[selectedPlatform],
+          userId: user?.id, // Pass userId for credit tracking if needed
         }),
       });
 
@@ -128,11 +183,17 @@ function GeneratorContent() {
 
       if (data.result) {
         setGeneratedContent(data.result);
+        // Refresh credits after successful generation
+        if (user) fetchCredits(user.id);
+
+        // Dispatch a custom event to notify other components (like Header/Profile) to refresh
+        window.dispatchEvent(new Event("creditsUpdated"));
       } else {
         console.error("Failed to generate content");
         setToast({
           show: true,
-          message: "Failed to generate content. Please try again.",
+          message:
+            data.message || "Failed to generate content. Please try again.",
           type: "error",
         });
       }
@@ -296,7 +357,7 @@ function GeneratorContent() {
               <PromptInput
                 value={prompt}
                 onChange={setPrompt}
-                isConnected={!!account}
+                isConnected={isConnected}
               />
 
               <PlatformSelector
@@ -314,7 +375,7 @@ function GeneratorContent() {
                 connectedUsernames={connectedUsernames}
                 onDisconnect={handleDisconnect}
                 onConnect={handleConnect}
-                isConnected={!!account}
+                isConnected={isConnected}
               />
 
               <button
@@ -354,12 +415,12 @@ function GeneratorContent() {
             {/* Right Column - Preview */}
             <div className="flex flex-col gap-4">
               <PreviewPanel
-                isLocked={!account}
-                isConnected={!!account}
+                isLocked={!isConnected}
+                isConnected={isConnected}
                 content={generatedContent}
                 prompt={prompt}
                 platform={selectedPlatform}
-                address={account?.address}
+                address={user?.id} // Use user ID as identifier for now
                 isLoading={isLoading}
                 // @ts-ignore
                 isPlatformConnected={connectedPlatforms.includes(

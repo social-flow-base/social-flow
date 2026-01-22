@@ -68,12 +68,28 @@ export function UserAuthProfile() {
     async function fetchProfile() {
       if (!user) return;
       try {
-        // We use the Supabase user ID or email to fetch profile/credits
-        const res = await fetch(`/api/user/profile?userId=${user.id}`);
-        const data = await res.json();
-        setProfileData(data);
+        const { data: creditsData, error } = await supabase
+          .from("user_credits")
+          .select("credits_remaining")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (error) {
+          console.warn(
+            "No credits found for user, might need initialization",
+            error,
+          );
+        }
+
+        setProfileData({
+          name:
+            user.user_metadata?.full_name ||
+            user.email?.split("@")?.[0] ||
+            "User",
+          credits: creditsData?.credits_remaining || 0,
+        });
       } catch (err) {
-        console.error("Failed to fetch profile:", err);
+        console.error("Failed to fetch credits:", err);
       }
     }
     if (user) {
@@ -81,7 +97,58 @@ export function UserAuthProfile() {
     } else {
       setProfileData(null);
     }
+
+    // Listen for credit updates from other components
+    const handleCreditsUpdate = () => {
+      if (user) fetchProfile();
+    };
+
+    window.addEventListener("creditsUpdated", handleCreditsUpdate);
+    return () =>
+      window.removeEventListener("creditsUpdated", handleCreditsUpdate);
   }, [user]);
+
+  // Sync wallet to Supabase
+  useEffect(() => {
+    async function syncWallet() {
+      if (!user || !account) return;
+
+      try {
+        // Find existing wallet for this user
+        const { data: existingWallet } = await supabase
+          .from("wallets")
+          .select("id, address")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (existingWallet) {
+          // Update if address changed or was null
+          if (existingWallet.address !== account.address) {
+            await supabase
+              .from("wallets")
+              .update({
+                address: account.address,
+                chain: "base",
+                verified: true,
+              })
+              .eq("id", existingWallet.id);
+          }
+        } else {
+          // Insert if doesn't exist (though trigger should handle it)
+          await supabase.from("wallets").insert({
+            user_id: user.id,
+            address: account.address,
+            chain: "base",
+            verified: true,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to sync wallet to Supabase:", err);
+      }
+    }
+
+    syncWallet();
+  }, [user?.id, account?.address]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

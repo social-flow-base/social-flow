@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DPrompt - Create Your Content",
+  title: "Social Flow - Create Your Content",
   description: "Create your content with AI",
 };
 
