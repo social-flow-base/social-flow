@@ -54,7 +54,7 @@ export default function SavedContentPage() {
   const [payingItemId, setPayingItemId] = useState<number | null>(null);
   const [copySuccessId, setCopySuccessId] = useState<number | null>(null);
 
-  const platforms = ["all", "linkedin", "instagram", "twitter", "threads"];
+  const platforms = ["all", "twitter", "threads", "linkedin"];
 
   useEffect(() => {
     // If no account, don't fetch and clear items

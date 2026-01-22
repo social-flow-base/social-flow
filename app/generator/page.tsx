@@ -19,7 +19,7 @@ function GeneratorContent() {
 
   // Derive platform from URL or default to linkedin
   const platformParam = searchParams.get("platform");
-  const selectedPlatform = platformParam || "linkedin";
+  const selectedPlatform = platformParam || "twitter";
 
   const handlePlatformSelect = (platform: string) => {
     // Update URL without reloading
@@ -289,7 +289,7 @@ function GeneratorContent() {
             <div className="flex flex-col gap-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
               <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
-                  Create Social Content
+                  Automate your social media posts
                 </h1>
               </div>
 
@@ -365,6 +365,7 @@ function GeneratorContent() {
                 isPlatformConnected={connectedPlatforms.includes(
                   selectedPlatform,
                 )}
+                connectedPlatforms={connectedPlatforms}
               />
             </div>
           </div>

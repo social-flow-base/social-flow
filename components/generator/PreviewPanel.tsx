@@ -16,6 +16,7 @@ interface PreviewPanelProps {
   address?: string;
   isLoading?: boolean;
   isPlatformConnected?: boolean;
+  connectedPlatforms?: string[];
 }
 
 export function PreviewPanel({
@@ -27,6 +28,7 @@ export function PreviewPanel({
   address,
   isLoading = false,
   isPlatformConnected = false,
+  connectedPlatforms = [],
 }: PreviewPanelProps) {
   const [isWindowFocused, setIsWindowFocused] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -36,6 +38,9 @@ export function PreviewPanel({
   const [postingType, setPostingType] = useState<
     null | "immediate" | "scheduled"
   >(null);
+  const [customSelectedPlatforms, setCustomSelectedPlatforms] = useState<
+    string[]
+  >([]);
   const isPosting = postingType !== null;
 
   // Payment State
@@ -119,7 +124,8 @@ export function PreviewPanel({
     }
 
     // Check if platform is connected
-    if (!isPlatformConnected) {
+    const isCustomPosting = customSelectedPlatforms.length > 0;
+    if (!isCustomPosting && !isPlatformConnected) {
       setToast({
         show: true,
         message: `Redirecting to connect ${platform}...`,
@@ -143,8 +149,22 @@ export function PreviewPanel({
       return;
     }
 
+    // Determine platforms to post to
+    const targetPlatforms = isCustomPosting
+      ? customSelectedPlatforms
+      : [platform!];
+
+    if (targetPlatforms.length === 0) {
+      setToast({
+        show: true,
+        message: "No platforms selected to post to",
+        type: "error",
+      });
+      return;
+    }
+
     // Hardcode limit check for Twitter
-    if (platform === "twitter" && contentToPost.length > 280) {
+    if (targetPlatforms.includes("twitter") && contentToPost.length > 280) {
       setToast({
         show: true,
         message: `Tweet is too long (${contentToPost.length}/280). Please shorten it.`,
@@ -156,29 +176,34 @@ export function PreviewPanel({
     // 1. Execute Post (API)
     setPostingType(scheduledForDate ? "scheduled" : "immediate");
     try {
-      const response = await fetch("/api/post", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          platform,
-          content: contentToPost,
-          scheduledFor: scheduledForDate,
-        }),
-      });
+      // If posting to all, we loop through them
+      for (const p of targetPlatforms) {
+        const response = await fetch("/api/post", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            platform: p,
+            content: contentToPost,
+            scheduledFor: scheduledForDate,
+          }),
+        });
 
-      const data = await response.json();
+        const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to post");
+        if (!response.ok) {
+          throw new Error(data.error || `Failed to post to ${p}`);
+        }
       }
 
       setToast({
         show: true,
         message: scheduledForDate
-          ? "Post scheduled successfully!"
-          : "Posted successfully! (Payment skipped for testing)",
+          ? "Posts scheduled successfully!"
+          : isCustomPosting
+            ? `Posted to ${targetPlatforms.length} platforms successfully!`
+            : "Posted successfully!",
         type: "success",
       });
 
@@ -692,6 +717,77 @@ export function PreviewPanel({
                 </svg>
                 Schedule Post
               </button>
+            )}
+
+            {!isLocked && (
+              <div className="mt-4 space-y-3 rounded-xl border border-zinc-100 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                    Post to platform
+                  </h4>
+                </div>
+
+                <div className="space-y-2">
+                  <div
+                    className={`flex items-center justify-between rounded-lg border p-3 transition-colors cursor-pointer ${
+                      customSelectedPlatforms.length === 0
+                        ? "border-blue-500 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-900/20"
+                        : "border-zinc-100 dark:border-zinc-800"
+                    }`}
+                    onClick={() => setCustomSelectedPlatforms([])}
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                        Default ({platform})
+                      </span>
+                    </div>
+                    <input
+                      type="radio"
+                      name="post-choice-inline"
+                      checked={customSelectedPlatforms.length === 0}
+                      readOnly
+                      className="h-3.5 w-3.5 border-zinc-300 text-blue-600 focus:ring-blue-600 dark:border-zinc-700 dark:bg-zinc-800"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {connectedPlatforms.map((p) => (
+                      <div
+                        key={p}
+                        className={`flex items-center justify-between rounded-lg border p-3 transition-colors cursor-pointer ${
+                          customSelectedPlatforms.includes(p)
+                            ? "border-blue-500 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-900/20"
+                            : "border-zinc-100 dark:border-zinc-800"
+                        }`}
+                        onClick={() => {
+                          if (customSelectedPlatforms.includes(p)) {
+                            setCustomSelectedPlatforms(
+                              customSelectedPlatforms.filter(
+                                (item) => item !== p,
+                              ),
+                            );
+                          } else {
+                            setCustomSelectedPlatforms([
+                              ...customSelectedPlatforms,
+                              p,
+                            ]);
+                          }
+                        }}
+                      >
+                        <span className="text-xs font-semibold capitalize text-zinc-900 dark:text-zinc-100">
+                          {p}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={customSelectedPlatforms.includes(p)}
+                          readOnly
+                          className="h-3.5 w-3.5 rounded border-zinc-300 text-blue-600 focus:ring-blue-600 dark:border-zinc-700 dark:bg-zinc-800"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         )}
