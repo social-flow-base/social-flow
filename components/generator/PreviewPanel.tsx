@@ -163,38 +163,26 @@ export function PreviewPanel({
       return;
     }
 
-    // Hardcode limit check for Twitter
-    if (targetPlatforms.includes("twitter") && contentToPost.length > 280) {
-      setToast({
-        show: true,
-        message: `Tweet is too long (${contentToPost.length}/280). Please shorten it.`,
-        type: "error",
-      });
-      return;
-    }
-
     // 1. Execute Post (API)
     setPostingType(scheduledForDate ? "scheduled" : "immediate");
     try {
-      // If posting to all, we loop through them
-      for (const p of targetPlatforms) {
-        const response = await fetch("/api/post", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            platform: p,
-            content: contentToPost,
-            scheduledFor: scheduledForDate,
-          }),
-        });
+      // Send all platforms in a single request
+      const response = await fetch("/api/post", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          platforms: targetPlatforms,
+          content: contentToPost,
+          scheduledFor: scheduledForDate,
+        }),
+      });
 
-        const data = await response.json();
+      const data = await response.json();
 
-        if (!response.ok) {
-          throw new Error(data.error || `Failed to post to ${p}`);
-        }
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to post");
       }
 
       setToast({
@@ -643,6 +631,8 @@ export function PreviewPanel({
                       try {
                         if (!scheduleTime) return;
                         const date = new Date(scheduleTime);
+                        const now = new Date();
+
                         if (isNaN(date.getTime())) {
                           setToast({
                             show: true,
@@ -651,6 +641,16 @@ export function PreviewPanel({
                           });
                           return;
                         }
+
+                        if (date <= now) {
+                          setToast({
+                            show: true,
+                            message: "Schedule time must be in the future",
+                            type: "error",
+                          });
+                          return;
+                        }
+
                         handlePost(date.toISOString());
                       } catch (e) {
                         console.error("Invalid date:", e);

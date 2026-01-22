@@ -4,12 +4,7 @@ import { NextResponse } from "next/server";
 const apiKey = process.env.GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey!);
 
-const MAX_LENGTH_CONTENT = {
-  TWITTER: 280,
-  INSTAGRAM: 280,
-  THREADS: 280,
-  LINKEDIN: 280,
-};
+const MAX_LENGTH_CONTENT = 280;
 
 export async function POST(req: Request) {
   try {
@@ -24,11 +19,7 @@ export async function POST(req: Request) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-    const limit =
-      MAX_LENGTH_CONTENT[
-        platform?.toUpperCase() as keyof typeof MAX_LENGTH_CONTENT
-      ];
-    const lengthConstraint = limit ? `Max with ${limit} char length.` : "";
+    const lengthConstraint = `Max with ${MAX_LENGTH_CONTENT} char length.`;
 
     const result = await model.generateContent([
       systemInstruction,
