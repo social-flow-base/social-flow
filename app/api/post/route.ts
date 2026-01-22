@@ -16,9 +16,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing content" }, { status: 400 });
     }
 
-    // Support both single "platform" (legacy/backward compatibility) and "platforms" array
-    const platformsToProcess =
-      requestedPlatforms || (platform ? [platform] : []);
+    // Enforce array format: "saat post atau schedule post ... tetap kirim dalam bentuk array"
+    // We prioritize 'platforms' usage, but support 'platform' for backward compatibility by converting it to an array.
+    const platformsToProcess: string[] = Array.isArray(requestedPlatforms)
+      ? requestedPlatforms
+      : platform
+        ? [platform]
+        : [];
 
     if (platformsToProcess.length === 0) {
       return NextResponse.json(
@@ -86,6 +90,31 @@ export async function POST(request: NextRequest) {
         payload.scheduledFor = scheduledFor;
       } else {
         payload.publishNow = true;
+      }
+
+      // 1. Deduct Credit IMMEDIATELY
+      const { error: updateError } = await supabaseClient.rpc("deduct_credit", {
+        p_user_id: user.id,
+      });
+
+      // If RPC fails (e.g. not defined), fallback to manual update
+      if (updateError) {
+        console.warn(
+          "RPC deduct_credit failed, falling back to manual update",
+          updateError,
+        );
+        const { data: currentCredits } = await supabaseClient
+          .from("user_credits")
+          .select("credits_remaining")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (currentCredits) {
+          await supabaseClient
+            .from("user_credits")
+            .update({ credits_remaining: currentCredits.credits_remaining - 1 })
+            .eq("user_id", user.id);
+        }
       }
 
       const { data: postResult } = await late.posts.createPost({
@@ -158,12 +187,16 @@ export async function POST(request: NextRequest) {
 
           // Insert distribution
           if (oauthAccount) {
+            const username = request.cookies.get(`${platform}_username`)?.value;
+
             const { error: distError } = await supabaseClient
               .from("post_distributions")
               .insert([
                 {
                   post_id: post.id,
                   platform: platform,
+                  platform_name: platform,
+                  username: username,
                   oauth_account_id: oauthAccount.id,
                   status: scheduledFor ? "scheduled" : "published",
                   scheduled_for: scheduledFor || null,
@@ -181,17 +214,20 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 3. Deduct Credit
-      const { error: updateError } = await supabaseClient.rpc("deduct_credit", {
-        p_user_id: user.id,
-      });
+      // 3. Deduct Credit (MOVED to before external call)
+      // This block is now handled earlier
 
-      // If RPC fails (e.g. not defined), fallback to manual update
-      if (updateError) {
-        console.warn(
-          "RPC deduct_credit failed, falling back to manual update",
-          updateError,
-        );
+      return NextResponse.json({ success: true, result: postResult });
+    } catch (lateError: any) {
+      console.error("Late API Error:", lateError);
+
+      // REFUND CREDIT if Late API fails
+      try {
+        console.log("Refunding credit due to API failure...");
+        // Attempts to refund via RPC usually, but for simplicity here we just increment manually
+        // or effectively 'undo' the deduction.
+        // Ideally we have a 'refund_credit' RPC, but manual is fine for now as fallback.
+
         const { data: currentCredits } = await supabaseClient
           .from("user_credits")
           .select("credits_remaining")
@@ -201,14 +237,13 @@ export async function POST(request: NextRequest) {
         if (currentCredits) {
           await supabaseClient
             .from("user_credits")
-            .update({ credits_remaining: currentCredits.credits_remaining - 1 })
+            .update({ credits_remaining: currentCredits.credits_remaining + 1 })
             .eq("user_id", user.id);
         }
+      } catch (refundError) {
+        console.error("Failed to refund credit after API error", refundError);
       }
 
-      return NextResponse.json({ success: true, result: postResult });
-    } catch (lateError: any) {
-      console.error("Late API Error:", lateError);
       return NextResponse.json(
         {
           error: lateError.message || `Failed to post via Late`,

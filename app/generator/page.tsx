@@ -427,6 +427,14 @@ function GeneratorContent() {
                   selectedPlatform,
                 )}
                 connectedPlatforms={connectedPlatforms}
+                onPostSuccess={() => {
+                  setGeneratedContent("");
+                  setPrompt(""); // Optional: clear prompt too if desired
+                  router.refresh(); // Refresh server components/data
+                  if (user?.id) {
+                    fetchCredits(user.id);
+                  }
+                }}
               />
             </div>
           </div>

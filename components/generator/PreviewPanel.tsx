@@ -18,6 +18,7 @@ interface PreviewPanelProps {
   isLoading?: boolean;
   isPlatformConnected?: boolean;
   connectedPlatforms?: string[];
+  onPostSuccess?: () => void;
 }
 
 export function PreviewPanel({
@@ -30,6 +31,7 @@ export function PreviewPanel({
   isLoading = false,
   isPlatformConnected = false,
   connectedPlatforms = [],
+  onPostSuccess,
 }: PreviewPanelProps) {
   const [isWindowFocused, setIsWindowFocused] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -204,6 +206,10 @@ export function PreviewPanel({
       setPostingType(null);
       setIsScheduling(false);
       setScheduleTime("");
+
+      if (onPostSuccess) {
+        onPostSuccess();
+      }
 
       // 2. Trigger Payment after successful post
       // handlePayment();
