@@ -36,7 +36,7 @@ export function ConnectWalletState() {
           size: "compact",
         }}
         appMetadata={{
-          name: "PromptDesk Onchain",
+          name: "SocialFlow",
           url: "https://promptdesk.xyz", // Replace with your actual URL
           description:
             "Audit and track your crypto-powered content generations",
