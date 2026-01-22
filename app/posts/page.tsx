@@ -153,6 +153,29 @@ function PostsContent() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
+  const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
+
+  // Fetch connected platforms from cookies
+  useEffect(() => {
+    const cookies = document.cookie.split("; ");
+    const platforms: string[] = [];
+
+    if (cookies.find((row) => row.startsWith("twitter_is_connected=")))
+      platforms.push("twitter");
+    if (cookies.find((row) => row.startsWith("threads_is_connected=")))
+      platforms.push("threads");
+    if (cookies.find((row) => row.startsWith("linkedin_is_connected=")))
+      platforms.push("linkedin");
+    if (cookies.find((row) => row.startsWith("instagram_is_connected=")))
+      platforms.push("instagram");
+
+    setConnectedPlatforms(platforms);
+  }, []);
+
+  const handleConnect = (platform: string) => {
+    window.location.href = `/api/auth/${platform}`;
+  };
+
   // Delete State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [postToDelete, setPostToDelete] = useState<Post | null>(null);
@@ -437,7 +460,37 @@ function PostsContent() {
 
             {!loading && posts.length === 0 && (
               <div className="rounded-xl border border-zinc-200 bg-white p-12 text-center dark:border-zinc-800 dark:bg-zinc-900">
-                <p className="text-zinc-500">No posts found.</p>
+                {platformFilter !== "all" &&
+                !connectedPlatforms.includes(platformFilter) ? (
+                  <div className="mx-auto max-w-sm space-y-4">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
+                      {PLATFORM_ICONS[platformFilter]}
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">
+                        {platformFilter.charAt(0).toUpperCase() +
+                          platformFilter.slice(1)}{" "}
+                        not connected
+                      </h3>
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                        Connect your{" "}
+                        {platformFilter.charAt(0).toUpperCase() +
+                          platformFilter.slice(1)}{" "}
+                        account to see and manage your posts.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleConnect(platformFilter)}
+                      className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white transition-all hover:bg-blue-700 active:scale-95"
+                    >
+                      Connect{" "}
+                      {platformFilter.charAt(0).toUpperCase() +
+                        platformFilter.slice(1)}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-zinc-500">No posts found.</p>
+                )}
               </div>
             )}
 

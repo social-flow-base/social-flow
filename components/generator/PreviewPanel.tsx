@@ -750,7 +750,9 @@ export function PreviewPanel({
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div
+                    className={`grid grid-cols-${connectedPlatforms?.length} gap-`}
+                  >
                     {connectedPlatforms.map((p) => (
                       <div
                         key={p}
