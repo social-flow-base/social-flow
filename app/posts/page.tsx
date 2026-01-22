@@ -382,9 +382,13 @@ function PostsContent() {
                     <div className="flex-1">
                       <div className="mb-2 flex items-center gap-2">
                         {/* @ts-ignore */}
-                        {post.platforms?.map(({ platform, _id }) => {
+                        {post.platforms?.map(({ _id, platform, accountId }) => {
                           return (
-                            <PlatformBadge key={_id} platform={platform} />
+                            <PlatformBadge
+                              key={_id}
+                              platform={platform}
+                              username={accountId?.username}
+                            />
                           );
                         })}
                         <span
@@ -399,9 +403,11 @@ function PostsContent() {
                           {post.status}
                         </span>
                         <span className="text-xs text-zinc-400">
-                          {post.scheduledFor
-                            ? `Scheduled: ${format(new Date(post.scheduledFor), "PPp")}`
-                            : `Created: ${format(new Date(post.createdAt || new Date()), "PPp")}`}
+                          {post.status === "scheduled" && post.scheduledFor
+                            ? `Scheduled: ${format(new Date(post.scheduledFor), "MMM d, yyyy HH:mm")}`
+                            : post.status === "published"
+                              ? `Published: ${format(new Date(post.createdAt || new Date()), "MMM d, yyyy HH:mm")}`
+                              : `Created: ${format(new Date(post.createdAt || new Date()), "MMM d, yyyy HH:mm")}`}
                         </span>
                       </div>
                       <p className="whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">
@@ -521,10 +527,19 @@ function PostsContent() {
   );
 }
 
-function PlatformBadge({ platform }: { platform: string }) {
+function PlatformBadge({
+  platform,
+  username,
+}: {
+  platform: string;
+  username: string;
+}) {
+  console.log("platform", platform);
+  console.log("username", username);
+
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
         platform === "twitter"
           ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
           : platform === "threads"
@@ -538,7 +553,7 @@ function PlatformBadge({ platform }: { platform: string }) {
     >
       {PLATFORM_ICONS[platform] && (
         <span className="flex items-center justify-center">
-          {PLATFORM_ICONS[platform]}
+          {PLATFORM_ICONS[platform]} <span className="ml-1">{username}</span>
         </span>
       )}
     </span>

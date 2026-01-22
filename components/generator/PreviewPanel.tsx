@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 import { prepareTransaction, toWei } from "thirdweb";
 import { defineChain } from "thirdweb/chains";
 import { useActiveAccount, useSendTransaction } from "thirdweb/react";
+import { format } from "date-fns";
 
 interface PreviewPanelProps {
   content?: string;
@@ -751,7 +752,7 @@ export function PreviewPanel({
                   </div>
 
                   <div
-                    className={`grid grid-cols-${connectedPlatforms?.length} gap-`}
+                    className={`grid grid-cols-${connectedPlatforms?.length} gap-2`}
                   >
                     {connectedPlatforms.map((p) => (
                       <div
