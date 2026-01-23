@@ -33,6 +33,7 @@ function GeneratorContent() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [generatedContent, setGeneratedContent] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [toast, setToast] = useState<{
     show: boolean;
@@ -154,6 +155,7 @@ function GeneratorContent() {
     if (!prompt) return;
 
     setIsLoading(true);
+    setIsEditing(false);
     setGeneratedContent("");
 
     try {
@@ -411,7 +413,7 @@ function GeneratorContent() {
                 content={generatedContent}
                 prompt={prompt}
                 platform={selectedPlatform}
-                address={user?.id} // Use user ID as identifier for now
+                address={user?.id}
                 isLoading={isLoading}
                 // @ts-ignore
                 isPlatformConnected={connectedPlatforms.includes(
@@ -420,12 +422,15 @@ function GeneratorContent() {
                 connectedPlatforms={connectedPlatforms}
                 onPostSuccess={() => {
                   setGeneratedContent("");
-                  setPrompt(""); // Optional: clear prompt too if desired
-                  router.refresh(); // Refresh server components/data
+                  setPrompt("");
+                  router.refresh();
                   if (user?.id) {
                     fetchCredits(user.id);
                   }
                 }}
+                isEditing={isEditing}
+                setIsEditing={setIsEditing}
+                onContentChange={setGeneratedContent}
               />
             </div>
           </div>

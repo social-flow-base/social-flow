@@ -19,6 +19,9 @@ interface PreviewPanelProps {
   isPlatformConnected?: boolean;
   connectedPlatforms?: string[];
   onPostSuccess?: () => void;
+  isEditing?: boolean;
+  setIsEditing?: (isEditing: boolean) => void;
+  onContentChange?: (content: string) => void;
 }
 
 export function PreviewPanel({
@@ -32,6 +35,9 @@ export function PreviewPanel({
   isPlatformConnected = false,
   connectedPlatforms = [],
   onPostSuccess,
+  isEditing = false,
+  setIsEditing,
+  onContentChange,
 }: PreviewPanelProps) {
   const [isWindowFocused, setIsWindowFocused] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -433,20 +439,43 @@ export function PreviewPanel({
             Preview Area
           </span>
         </div>
-        {isLocked && (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            className="h-4 w-4 text-zinc-400"
-          >
-            <path
-              fillRule="evenodd"
-              d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
-              clipRule="evenodd"
-            />
-          </svg>
-        )}
+        <div className="flex items-center gap-2">
+          {isConnected && !isLocked && setIsEditing && (
+            <button
+              onClick={() => setIsEditing(!isEditing)}
+              className={`p-1.5 rounded-md transition-colors ${
+                isEditing
+                  ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              }`}
+              title={isEditing ? "View Preview" : "Edit Content"}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="h-4 w-4"
+              >
+                <path d="M5.433 13.917l1.262-3.155A4 4 0 017.58 9.42l6.92-6.918a2.121 2.121 0 013 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 01-.65-.65z" />
+                <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0010 3H4.75A2.75 2.75 0 002 5.75v9.5A2.75 2.75 0 004.75 18h9.5A2.75 2.75 0 0017 15.25V10a.75.75 0 00-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5z" />
+              </svg>
+            </button>
+          )}
+          {isLocked && (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-4 w-4 text-zinc-400"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
+                clipRule="evenodd"
+              />
+            </svg>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center p-8 relative">
@@ -462,7 +491,7 @@ export function PreviewPanel({
           <div className="flex w-full flex-col items-center justify-center gap-4 px-4 text-zinc-500 dark:text-zinc-400">
             <CyclingText />
           </div>
-        ) : !content ? (
+        ) : !content && !isEditing ? (
           <div className="flex max-w-xs flex-col items-center text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-900">
               <svg
@@ -483,12 +512,28 @@ export function PreviewPanel({
             <h3 className="mb-2 text-base font-semibold text-zinc-900 dark:text-zinc-100">
               {isConnected ? "Ready to create magic!" : "Ready to generate?"}
             </h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
               {isConnected
                 ? "Describe your topic, choose a platform, and generate engaging content in seconds."
                 : "Sign in with Google to unlock AI-powered content generation."}
             </p>
+            {isConnected && setIsEditing && (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm ring-1 ring-zinc-200 hover:bg-zinc-50 dark:bg-zinc-800 dark:text-white dark:ring-zinc-700 dark:hover:bg-zinc-700"
+              >
+                Write Manually
+              </button>
+            )}
           </div>
+        ) : isEditing ? (
+          <textarea
+            value={content}
+            onChange={(e) => onContentChange?.(e.target.value)}
+            placeholder="Write your creative content here..."
+            className="h-full w-full resize-none bg-transparent p-0 text-sm leading-relaxed text-zinc-900 placeholder:text-zinc-400 focus:outline-none dark:text-zinc-100"
+            autoFocus
+          />
         ) : (
           <div
             className={`h-full w-full overflow-y-auto text-sm leading-relaxed text-zinc-600 dark:text-zinc-300 select-none transition-all duration-300 ${
