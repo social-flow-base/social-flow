@@ -342,7 +342,7 @@ function GeneratorContent() {
             {/* Left Column - Inputs */}
             <div className="flex flex-col gap-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
               <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
+                <h1 className="text-lg md:text-2xl font-bold text-zinc-900 dark:text-white">
                   Automate your social media posts
                 </h1>
               </div>

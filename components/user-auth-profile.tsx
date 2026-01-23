@@ -13,6 +13,7 @@ import { defineChain } from "thirdweb/chains";
 import { createWallet } from "thirdweb/wallets";
 import { supabase } from "@/supabase/client";
 import { User } from "@supabase/supabase-js";
+import { TopUpModal } from "./TopUpModal";
 
 const wallets = [
   createWallet("io.metamask"),
@@ -34,6 +35,7 @@ export function UserAuthProfile() {
   } | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
 
   const [imgError, setImgError] = useState(false);
 
@@ -315,6 +317,28 @@ export function UserAuthProfile() {
           </div>
 
           <div className="p-3 border-b border-zinc-100 dark:border-zinc-800">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                Balance
+              </p>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-zinc-900 dark:text-zinc-100">
+                  {profileData?.credits ?? 0}
+                </span>
+                <span className="text-xs font-medium text-zinc-500">
+                  Credits
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsTopUpModalOpen(true)}
+              className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-600 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-blue-700 active:scale-[0.98] dark:bg-blue-600 dark:hover:bg-blue-700"
+            >
+              Top Up Credits
+            </button>
+          </div>
+
+          <div className="p-3 border-b border-zinc-100 dark:border-zinc-800">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
                 Wallet
@@ -382,6 +406,19 @@ export function UserAuthProfile() {
             </button>
           </div>
         </div>
+      )}
+
+      {user && (
+        <TopUpModal
+          isOpen={isTopUpModalOpen}
+          onClose={() => setIsTopUpModalOpen(false)}
+          userId={user.id}
+          onSuccess={() => {
+            // Trigger a refresh of the profile data
+            const event = new CustomEvent("creditsUpdated");
+            window.dispatchEvent(event);
+          }}
+        />
       )}
     </div>
   );
