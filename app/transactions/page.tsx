@@ -14,7 +14,7 @@ export default function TransactionsPage() {
               Transaction History
             </h1>
             <p className="text-zinc-600 dark:text-zinc-400">
-              Audit and track your crypto-powered content generations across all
+              Audit and track your crypto powered content generations across all
               platforms.
             </p>
           </div>
