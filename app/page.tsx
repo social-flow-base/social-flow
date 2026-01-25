@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { UserAuthProfile } from "@/components/user-auth-profile";
 import { supabase } from "@/supabase/client";
+import { sdk } from "@farcaster/miniapp-sdk";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function Home() {
   const router = useRouter();
@@ -30,6 +31,10 @@ export default function Home() {
     }
     checkUser();
   }, [router]);
+
+  useEffect(() => {
+    sdk.actions.ready();
+  }, []);
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
