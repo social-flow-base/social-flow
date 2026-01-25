@@ -21,14 +21,14 @@ export async function generateMetadata(): Promise<Metadata> {
     other: {
       "fc:miniapp": JSON.stringify({
         version: "next",
-        imageUrl: "https://your-app.com/embed-image",
+        imageUrl: "https://dprompt.netlify.app/og.png",
         button: {
           title: `Launch Your Social Flow`,
           action: {
             type: "launch_miniapp",
             name: "Social Flow",
-            url: "https://your-app.com",
-            splashImageUrl: "https://your-app.com/splash-image",
+            url: "https://dprompt.netlify.app",
+            splashImageUrl: "https://dprompt.netlify.app/splash.png",
             splashBackgroundColor: "#000000",
           },
         },
