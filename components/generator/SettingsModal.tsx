@@ -27,7 +27,6 @@ export function SettingsModal({
       <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
-            System Instruction for{" "}
             <span className="capitalize">{platform}</span>
           </h2>
           <button
