@@ -1,3 +1,6 @@
+"use client";
+
+import { useAccount } from "wagmi";
 import { SettingsModal } from "./SettingsModal";
 
 interface PlatformSelectorProps {
@@ -78,8 +81,8 @@ export function PlatformSelector({
   connectedUsernames = {},
   onDisconnect,
   onConnect,
-  isConnected = false,
 }: PlatformSelectorProps) {
+  const { isConnected: isWalletConnected } = useAccount();
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -132,7 +135,7 @@ export function PlatformSelector({
         }}
         platform={selectedPlatform}
       />
-      <div className="grid grid-cols-1 sm:grid-cols-3 mt-3 gap-6">
+      <div className="grid grid-cols-3 mt-3 gap-3">
         {platforms.map((platform) => (
           <div
             key={platform.id}
@@ -194,13 +197,12 @@ export function PlatformSelector({
                 @{connectedUsernames[platform.id]}
               </span>
             ) : (
-              onConnect &&
-              isConnected &&
+              isWalletConnected &&
               !connectedPlatforms.includes(platform.id) && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onConnect(platform.id);
+                    onConnect?.(platform.id);
                   }}
                   className="mt-1 rounded-md bg-blue-600 px-3 py-1 text-[10px] font-medium text-white shadow-sm hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
                 >

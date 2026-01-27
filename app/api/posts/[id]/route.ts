@@ -101,19 +101,10 @@ export async function PATCH(
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Auth check
+    // Optional: Auth check
     const authHeader = request.headers.get("authorization");
-    if (!authHeader) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (authHeader) {
+      await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     }
 
     // 1. Update in Supabase

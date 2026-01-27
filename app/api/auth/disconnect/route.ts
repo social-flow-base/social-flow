@@ -19,6 +19,13 @@ export async function POST(request: NextRequest) {
     response.cookies.delete("threads_account_id");
   }
 
+  if (platform === "linkedin" || platform === "all") {
+    // Clear all LinkedIn-related cookies
+    response.cookies.delete("linkedin_is_connected");
+    response.cookies.delete("linkedin_username");
+    response.cookies.delete("linkedin_account_id");
+  }
+
   // We do NOT delete late_profile_id because it might be used for other platforms
   // If we wanted to fully reset:
   // response.cookies.delete("late_profile_id");

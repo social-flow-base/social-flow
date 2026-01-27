@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useActiveAccount, useWalletBalance } from "thirdweb/react";
+import { useAccount, useBalance } from "wagmi";
+import { formatEther } from "viem";
 import { supabase } from "@/supabase/client";
-import { defineChain } from "thirdweb/chains";
-import { client } from "@/lib/client";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function StatsCards() {
-  const account = useActiveAccount();
+  const { address } = useAccount();
   const [stats, setStats] = useState({
     totalSpent: 0,
     totalTransactions: 0,
@@ -22,24 +21,40 @@ export function StatsCards() {
     async function fetchStats() {
       setIsLoading(true);
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) {
+        if (!address) {
+          setStats({ totalSpent: 0, totalTransactions: 0 });
           setIsLoading(false);
           return;
         }
 
-        // Fetch transactions for stats
-        const { data: transactions } = await supabase
-          .from("transactions")
-          .select("amount, status, created_at")
-          .eq("user_id", user.id);
+        // 1. Get user_id from profiles table using wallet address
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("wallet_address", address)
+          .single();
+
+        if (profileError || !profileData) {
+          console.warn("Profile not found for address:", address);
+          setStats({ totalSpent: 0, totalTransactions: 0 });
+          setIsLoading(false);
+          return;
+        }
+
+        const userId = profileData.id;
+
+        // Fetch transactions for stats directly filtered by user
+        const { data: transactions, error } = await supabase
+          .from("post_transactions")
+          .select("amount_eth, status, created_at")
+          .eq("user_id", userId);
+
+        if (error) throw error;
 
         if (transactions) {
           const totalSpent = transactions
-            .filter((t) => t.status === "success")
-            .reduce((acc, curr) => acc + Number(curr.amount), 0);
+            .filter((t) => t.status === "confirmed")
+            .reduce((acc, curr) => acc + Number(curr.amount_eth), 0);
 
           // Count recent (last 30 days)
           const thirtyDaysAgo = new Date();
@@ -62,29 +77,66 @@ export function StatsCards() {
     }
 
     fetchStats();
-  }, []); // Remove account dependency, fetch on mount or when user changes if needed (Supabase listener handles session)
+  }, [address]);
 
   // Hook for balance
-  const { data: balanceData, isLoading: isBalanceLoading } = useWalletBalance({
-    chain: defineChain(8453), // Base
-    address: account?.address,
-    client: client,
+  const { data: balanceData, isLoading: isBalanceLoading } = useBalance({
+    address: address,
   });
 
   return (
-    <div className="grid gap-4 md:grid-cols-3">
-      {/* Total Spent Card */}
-      <div className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-black">
-        <div className="mb-4 flex items-start justify-between">
-          <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-            Total Spent
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-4">
+      {/* Current Balance Card */}
+      <div className="col-span-2 rounded-2xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-black md:col-span-1">
+        <div className="mb-2 flex items-start justify-between sm:mb-4">
+          <span className="text-xs font-medium text-zinc-500 sm:text-sm dark:text-zinc-400">
+            Balance
           </span>
-          <div className="rounded-lg bg-blue-50 p-2 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+          <div className="hidden rounded-lg bg-blue-50 p-1.5 text-blue-600 sm:block sm:p-2 dark:bg-blue-900/20 dark:text-blue-400">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 20 20"
               fill="currentColor"
-              className="h-5 w-5"
+              className="h-4 w-4 sm:h-5 sm:w-5"
+            >
+              <path
+                fillRule="evenodd"
+                d="M2.5 4A1.5 1.5 0 001 5.5V6h18v-.5A1.5 1.5 0 0017.5 4h-15zM19 8.5H1v6A1.5 1.5 0 002.5 16h15a1.5 1.5 0 001.5-1.5v-6zM3 13.25a.75.75 0 01.75-.75h1.5a.75.75 0 010 1.5h-1.5a.75.75 0 01-.75-.75zm4.75-.75a.75.75 0 000 1.5h1.5a.75.75 0 000-1.5h-1.5z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </div>
+        </div>
+        <div className="mb-1 truncate text-lg font-bold text-zinc-900 sm:text-3xl dark:text-white">
+          {isBalanceLoading || isLoading ? (
+            <Skeleton className="h-6 w-24 sm:h-9 sm:w-32" />
+          ) : (
+            `${
+              balanceData
+                ? Number(formatEther(balanceData.value)).toFixed(4)
+                : "0.0000"
+            } ${balanceData?.symbol || "ETH"}`
+          )}
+        </div>
+        <div className="flex items-center gap-1 text-xs">
+          <span className="truncate text-zinc-500 dark:text-zinc-400">
+            Base
+          </span>
+        </div>
+      </div>
+
+      {/* Total Spent Card */}
+      <div className="rounded-2xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-black">
+        <div className="mb-2 flex items-start justify-between sm:mb-4">
+          <span className="text-xs font-medium text-zinc-500 sm:text-sm dark:text-zinc-400">
+            Total Spent
+          </span>
+          <div className="hidden rounded-lg bg-blue-50 p-1.5 text-blue-600 sm:block sm:p-2 dark:bg-blue-900/20 dark:text-blue-400">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-4 w-4 sm:h-5 sm:w-5"
             >
               <path
                 fillRule="evenodd"
@@ -94,32 +146,32 @@ export function StatsCards() {
             </svg>
           </div>
         </div>
-        <div className="mb-1 text-3xl font-bold text-zinc-900 dark:text-white">
+        <div className="mb-1 truncate text-lg font-bold text-zinc-900 sm:text-3xl dark:text-white">
           {isLoading ? (
-            <Skeleton className="h-9 w-32" />
+            <Skeleton className="h-6 w-24 sm:h-9 sm:w-32" />
           ) : (
             `${stats.totalSpent.toFixed(6)} ETH`
           )}
         </div>
         <div className="flex items-center gap-1 text-xs">
-          <span className="text-zinc-500 dark:text-zinc-400">
+          <span className="truncate text-zinc-500 dark:text-zinc-400">
             Lifetime spend
           </span>
         </div>
       </div>
 
       {/* Recent Activity Card */}
-      <div className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-black">
-        <div className="mb-4 flex items-start justify-between">
-          <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-            Recent Activity (30d)
+      <div className="rounded-2xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-black">
+        <div className="mb-2 flex items-start justify-between sm:mb-4">
+          <span className="text-xs font-medium text-zinc-500 sm:text-sm dark:text-zinc-400">
+            Activity (30d)
           </span>
-          <div className="rounded-lg bg-blue-50 p-2 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+          <div className="hidden rounded-lg bg-blue-50 p-1.5 text-blue-600 sm:block sm:p-2 dark:bg-blue-900/20 dark:text-blue-400">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 20 20"
               fill="currentColor"
-              className="h-5 w-5"
+              className="h-4 w-4 sm:h-5 sm:w-5"
             >
               <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h5.25a.75.75 0 00.75-.75v-5.25z" />
               <path
@@ -130,53 +182,16 @@ export function StatsCards() {
             </svg>
           </div>
         </div>
-        <div className="mb-1 text-3xl font-bold text-zinc-900 dark:text-white">
+        <div className="mb-1 truncate text-lg font-bold text-zinc-900 sm:text-3xl dark:text-white">
           {isLoading ? (
-            <Skeleton className="h-9 w-24" />
+            <Skeleton className="h-6 w-16 sm:h-9 sm:w-24" />
           ) : (
             `${stats.totalTransactions} Txns`
           )}
         </div>
         <div className="flex items-center gap-1 text-xs">
-          <span className="text-zinc-500 dark:text-zinc-400">last 30 days</span>
-        </div>
-      </div>
-
-      {/* Current Balance Card */}
-      <div className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-black">
-        <div className="mb-4 flex items-start justify-between">
-          <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-            Current Balance
-          </span>
-          <div className="rounded-lg bg-blue-50 p-2 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="h-5 w-5"
-            >
-              <path
-                fillRule="evenodd"
-                d="M2.5 4A1.5 1.5 0 001 5.5V6h18v-.5A1.5 1.5 0 0017.5 4h-15zM19 8.5H1v6A1.5 1.5 0 002.5 16h15a1.5 1.5 0 001.5-1.5v-6zM3 13.25a.75.75 0 01.75-.75h1.5a.75.75 0 010 1.5h-1.5a.75.75 0 01-.75-.75zm4.75-.75a.75.75 0 000 1.5h1.5a.75.75 0 000-1.5h-1.5z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </div>
-        </div>
-        <div className="mb-1 text-3xl font-bold text-zinc-900 dark:text-white">
-          {isBalanceLoading || isLoading ? (
-            <Skeleton className="h-9 w-32" />
-          ) : (
-            `${
-              balanceData
-                ? Number(balanceData.displayValue).toFixed(4)
-                : "0.0000"
-            } ${balanceData?.symbol || "ETH"}`
-          )}
-        </div>
-        <div className="flex items-center gap-1 text-xs">
-          <span className="text-zinc-500 dark:text-zinc-400">
-            Connected to Base Mainnet
+          <span className="truncate text-zinc-500 dark:text-zinc-400">
+            last 30 days
           </span>
         </div>
       </div>

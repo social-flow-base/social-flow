@@ -2,13 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { Header } from "@/components/layout/Header";
-import { Footer } from "@/components/layout/Footer";
 import { supabase } from "@/supabase/client";
 import ReactMarkdown from "react-markdown";
-import { prepareTransaction, toWei } from "thirdweb";
-import { useSendTransaction, useActiveAccount } from "thirdweb/react";
-import { defineChain } from "thirdweb/chains";
-import { client } from "@/lib/client";
+import { useAccount, useSendTransaction } from "wagmi";
+import { parseEther } from "viem";
 import { AlertModal } from "@/components/ui/AlertModal";
 import { ContentDetailModal } from "@/components/ui/ContentDetailModal";
 import { Toast } from "@/components/ui/Toast";
@@ -25,7 +22,7 @@ interface SavedContent {
 }
 
 export default function SavedContentPage() {
-  const account = useActiveAccount();
+  const { address } = useAccount();
   const [savedItems, setSavedItems] = useState<SavedContent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -50,15 +47,15 @@ export default function SavedContentPage() {
   const [selectedItem, setSelectedItem] = useState<SavedContent | null>(null);
 
   // Payment state
-  const { mutate: sendTransaction } = useSendTransaction();
+  const { sendTransactionAsync } = useSendTransaction();
   const [payingItemId, setPayingItemId] = useState<number | null>(null);
   const [copySuccessId, setCopySuccessId] = useState<number | null>(null);
 
   const platforms = ["all", "twitter", "threads", "linkedin"];
 
   useEffect(() => {
-    // If no account, don't fetch and clear items
-    if (!account) {
+    // If no address, don't fetch and clear items
+    if (!address) {
       setSavedItems([]);
       setIsLoading(false);
       return;
@@ -69,10 +66,10 @@ export default function SavedContentPage() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, filterPlatform, account?.address]);
+  }, [searchQuery, filterPlatform, address]);
 
   const fetchSavedContent = async () => {
-    if (!account) return;
+    if (!address) return;
 
     setIsLoading(true);
     try {
@@ -80,7 +77,7 @@ export default function SavedContentPage() {
         .from("saved_content")
         .select("*")
         .order("created_at", { ascending: false })
-        .eq("wallet_address", account.address);
+        .eq("wallet_address", address);
 
       if (filterPlatform !== "all") {
         query = query.ilike("platform", filterPlatform);
@@ -163,7 +160,7 @@ export default function SavedContentPage() {
   };
 
   const handlePay = async (item: SavedContent) => {
-    if (!account) {
+    if (!address) {
       setToast({
         show: true,
         message: "Please connect your wallet to pay",
@@ -174,81 +171,68 @@ export default function SavedContentPage() {
 
     setPayingItemId(item.id);
 
-    // Create a transaction (mock payment of 0 ETH/IDRX equivalent)
-    // Sending to self to be safe and simple for demo
-    const transaction = prepareTransaction({
-      to:
-        process.env.NEXT_PUBLIC_SERVER_WALLET_ADDRESS ||
-        "0x0000000000000000000000000000000000000000",
-      chain: defineChain(8453), // Base Mainnet
-      client: client,
-      value: toWei("0.000003"), // Approx 0.01 USD
-    });
-
     try {
-      sendTransaction(transaction, {
-        onSuccess: async (tx) => {
-          // Save tx_hash to database
-          const { error } = await supabase
-            .from("saved_content")
-            .update({ tx_hash: tx.transactionHash })
-            .eq("id", item.id);
-
-          // Record transaction in transactions table
-          try {
-            const {
-              data: { user },
-            } = await supabase.auth.getUser();
-            if (user) {
-              await supabase.from("transactions").insert({
-                user_id: user.id,
-                saved_content_id: item.id,
-                tx_hash: tx.transactionHash,
-                chain_id: 8453,
-                token_symbol: "ETH",
-                amount: 0.000003,
-                status: "success",
-                token_address: null,
-              });
-            }
-          } catch (txErr) {
-            console.error("Failed to record transaction:", txErr);
-          }
-
-          if (error) {
-            console.error("Error saving tx_hash:", error);
-            setToast({
-              show: true,
-              message: "Payment successful but failed to save record.",
-              type: "error",
-            });
-          } else {
-            // Update local state
-            setSavedItems((prev) =>
-              prev.map((i) =>
-                i.id === item.id ? { ...i, tx_hash: tx.transactionHash } : i,
-              ),
-            );
-            setToast({
-              show: true,
-              message: "Payment successful! Copy enabled.",
-              type: "success",
-            });
-          }
-          setPayingItemId(null);
-        },
-        onError: (error: any) => {
-          console.error("Transaction failed:", error);
-          setToast({
-            show: true,
-            message: "Transaction failed/rejected.",
-            type: "error",
-          });
-          setPayingItemId(null);
-        },
+      const txHash = await sendTransactionAsync({
+        to: (process.env.NEXT_PUBLIC_SERVER_WALLET_ADDRESS ||
+          "0x0000000000000000000000000000000000000000") as `0x${string}`,
+        value: parseEther("0.000003"), // Approx 0.01 USD
       });
-    } catch (error) {
-      console.error("Error initiating transaction:", error);
+
+      // Save tx_hash to database
+      const { error } = await supabase
+        .from("saved_content")
+        .update({ tx_hash: txHash })
+        .eq("id", item.id);
+
+      // Record transaction in transactions table
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from("transactions").insert({
+            user_id: user.id,
+            saved_content_id: item.id,
+            tx_hash: txHash,
+            chain_id: 8453,
+            token_symbol: "ETH",
+            amount: 0.000003,
+            status: "success",
+            token_address: null,
+          });
+        }
+      } catch (txErr) {
+        console.error("Failed to record transaction:", txErr);
+      }
+
+      if (error) {
+        console.error("Error saving tx_hash:", error);
+        setToast({
+          show: true,
+          message: "Payment successful but failed to save record.",
+          type: "error",
+        });
+      } else {
+        // Update local state
+        setSavedItems((prev) =>
+          prev.map((i) => (i.id === item.id ? { ...i, tx_hash: txHash } : i)),
+        );
+        setToast({
+          show: true,
+          message: "Payment successful! Copy enabled.",
+          type: "success",
+        });
+      }
+      setPayingItemId(null);
+    } catch (error: unknown) {
+      console.error("Transaction failed:", error);
+      setToast({
+        show: true,
+        message:
+          "Transaction failed/rejected. " +
+          (error instanceof Error ? error.message : ""),
+        type: "error",
+      });
       setPayingItemId(null);
     }
   };
@@ -309,7 +293,7 @@ export default function SavedContentPage() {
             </div>
           </div>
 
-          {isLoading && account ? (
+          {isLoading && address ? (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {[...Array(6)].map((_, i) => (
                 <div
@@ -556,7 +540,6 @@ export default function SavedContentPage() {
         item={selectedItem}
       />
 
-      <Footer />
       <Toast
         message={toast.message}
         type={toast.type}

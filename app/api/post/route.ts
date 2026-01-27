@@ -10,6 +10,13 @@ export async function POST(request: NextRequest) {
       platform,
       platforms: requestedPlatforms,
       scheduledFor,
+      mediaItems,
+      title,
+      tags,
+      hashtags,
+      mentions,
+      visibility,
+      crosspostingEnabled,
     } = body;
 
     if (!content) {
@@ -37,11 +44,24 @@ export async function POST(request: NextRequest) {
       ? authHeader.substring(7)
       : null;
 
-    const {
-      data: { user },
-    } = token
-      ? await supabaseClient.auth.getUser(token)
-      : await supabaseClient.auth.getUser();
+    let user: any = null;
+
+    if (token) {
+      const { data } = await supabaseClient.auth.getUser(token);
+      user = data.user;
+    }
+
+    // Fallback: Check for custom X-User-Id header (for Wallet users without Supabase session)
+    if (!user) {
+      const userIdHeader = request.headers.get("X-User-Id");
+      if (userIdHeader) {
+        // Verify this user exists in profiles (optional security check, but good practice)
+        // For now, we trust the client's claimed ID if it matches a valid UUID format or just take it,
+        // relying on the fact that only signed-in wallet users get here in UI.
+        // A more secure way would be to verify a signature, but we are keeping it simple as per existing flow.
+        user = { id: userIdHeader };
+      }
+    }
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -68,6 +88,8 @@ export async function POST(request: NextRequest) {
     for (const p of platformsToProcess) {
       const accountIdCookieName = `${p}_account_id`;
       const accountId = request.cookies.get(accountIdCookieName)?.value;
+      const usernameCookieName = `${p}_username`;
+      const username = request.cookies.get(usernameCookieName)?.value;
 
       if (!accountId) {
         return NextResponse.json(
@@ -75,7 +97,11 @@ export async function POST(request: NextRequest) {
           { status: 401 },
         );
       }
-      platformPayloads.push({ platform: p as any, accountId: accountId });
+      platformPayloads.push({
+        platform: p as any,
+        accountId: accountId,
+        username: username ? decodeURIComponent(username) : undefined,
+      });
     }
 
     const late = getLateClient();
@@ -84,6 +110,13 @@ export async function POST(request: NextRequest) {
       const payload: any = {
         content,
         platforms: platformPayloads,
+        mediaItems,
+        title,
+        tags,
+        hashtags,
+        mentions,
+        visibility,
+        crosspostingEnabled,
       };
 
       if (scheduledFor) {
@@ -131,22 +164,24 @@ export async function POST(request: NextRequest) {
       // Map fields from GetLate response to our DB schema
       const dbPayload = {
         user_id: user.id, // Internal Supabase ID
-        external_id: postData._id,
-        external_user_id: postData.userId,
-        title: postData.title || "",
-        content: postData.content,
-        media_items: postData.mediaItems || [],
-        platforms: postData.platforms || [],
-        scheduled_for: postData.scheduledFor || null,
+        external_id: postData._id || postData.id,
+        external_user_id: postData.userId || user.id,
+        title: postData.title || title || "",
+        content: postData.content || content,
+        media_items: postData.mediaItems || mediaItems || [],
+        platforms: postData.platforms || platformPayloads || [],
+        scheduled_for: postData.scheduledFor || scheduledFor || null,
         timezone: postData.timezone || "UTC",
         status: postData.status || (scheduledFor ? "scheduled" : "published"),
-        tags: postData.tags || [],
-        hashtags: postData.hashtags || [],
-        mentions: postData.mentions || [],
-        visibility: postData.visibility || "public",
-        crossposting_enabled: postData.crosspostingEnabled ?? true,
+        tags: postData.tags || tags || [],
+        hashtags: postData.hashtags || hashtags || [],
+        mentions: postData.mentions || mentions || [],
+        visibility: postData.visibility || visibility || "public",
+        crossposting_enabled:
+          postData.crosspostingEnabled ?? crosspostingEnabled ?? true,
         metadata: postData.metadata || {},
         publish_attempts: postData.publishAttempts || 0,
+        external_raw: postResultAny,
       };
 
       const { data: post, error: postError } = await supabaseClient

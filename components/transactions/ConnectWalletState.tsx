@@ -1,6 +1,4 @@
-import { ConnectButton } from "thirdweb/react";
-import { client } from "@/lib/client";
-import { defineChain } from "thirdweb/chains";
+import { Wallet, ConnectWallet } from "@coinbase/onchainkit/wallet";
 
 export function ConnectWalletState() {
   return (
@@ -28,20 +26,9 @@ export function ConnectWalletState() {
         You need to connect your wallet to view your transaction history, check
         your balance, and track your spending.
       </p>
-      <ConnectButton
-        client={client}
-        chains={[defineChain(84532)]} // Base Sepolia
-        theme={"dark"}
-        connectModal={{
-          size: "compact",
-        }}
-        appMetadata={{
-          name: "Social Flow",
-          url: "https://dprompt.netlify.app",
-          description:
-            "Automate your content with AI and monetize on-chain effortlessly.",
-        }}
-      />
+      <Wallet>
+        <ConnectWallet className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 active:scale-[0.98] dark:bg-blue-500 dark:hover:bg-blue-600" />
+      </Wallet>
     </div>
   );
 }

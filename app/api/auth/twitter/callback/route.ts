@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     });
 
     const twitterAccount = accountsData?.accounts?.find(
-      (acc) => acc.platform === "twitter",
+      (acc: any) => acc.platform === "twitter",
     );
 
     if (!twitterAccount) {

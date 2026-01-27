@@ -1,5 +1,4 @@
 import { Header } from "@/components/layout/Header";
-import { Footer } from "@/components/layout/Footer";
 import { TransactionPageContent } from "@/components/transactions/TransactionPageContent";
 
 export default function TransactionsPage() {
@@ -22,8 +21,6 @@ export default function TransactionsPage() {
           <TransactionPageContent />
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 }

@@ -1,19 +1,19 @@
 "use client";
 
-import { useActiveWallet } from "thirdweb/react";
+import { useAccount } from "wagmi";
 import { useEffect, useRef } from "react";
 
 export function WalletWatcher() {
-  const activeWallet = useActiveWallet();
+  const { isConnected } = useAccount();
   const wasConnected = useRef(false);
 
   useEffect(() => {
     // If we have a wallet, we are connected
-    if (activeWallet) {
+    if (isConnected) {
       wasConnected.current = true;
     }
     // If we don't have a wallet, but we WERE connected previously, that means we just disconnected
-    else if (!activeWallet && wasConnected.current) {
+    else if (!isConnected && wasConnected.current) {
       // Trigger global disconnect
       fetch("/api/auth/disconnect", {
         method: "POST",
@@ -29,7 +29,7 @@ export function WalletWatcher() {
 
       wasConnected.current = false;
     }
-  }, [activeWallet]);
+  }, [isConnected]);
 
   return null;
 }

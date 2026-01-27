@@ -1,16 +1,17 @@
 "use client";
 
-import { supabase } from "@/supabase/client";
 import { PlatformSelector } from "@/components/generator/PlatformSelector";
-import { PromptInput } from "@/components/generator/PromptInput";
-import { Footer } from "@/components/layout/Footer";
-import { Header } from "@/components/layout/Header";
-import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useActiveAccount } from "thirdweb/react";
 import { PreviewPanel } from "@/components/generator/PreviewPanel";
+import { PromptInput } from "@/components/generator/PromptInput";
+import { Header } from "@/components/layout/Header";
 import { Toast } from "@/components/ui/Toast";
+import { supabase } from "@/supabase/client";
 import { sdk } from "@farcaster/miniapp-sdk";
+import { User } from "@supabase/supabase-js";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useWalletAuth } from "@/hooks/useWalletAuth";
+import { useAccount } from "wagmi";
 
 function GeneratorContent() {
   const router = useRouter();
@@ -31,6 +32,7 @@ function GeneratorContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [generatedContent, setGeneratedContent] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [toast, setToast] = useState<{
     show: boolean;
@@ -50,7 +52,7 @@ function GeneratorContent() {
     twitter: `You are a Twitter power user. Create a single, punchy tweet. Do NOT use threads. Focus on viral potential.`,
   });
 
-  const account = useActiveAccount();
+  const { address } = useAccount();
 
   // Dark mode effect from original page.tsx
   useEffect(() => {
@@ -99,7 +101,7 @@ function GeneratorContent() {
         "promptdesk_system_instructions",
         JSON.stringify(newInstructions),
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error saving to localStorage:", error);
       setToast({
         show: true,
@@ -109,7 +111,7 @@ function GeneratorContent() {
     }
   };
 
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
 
   const fetchCredits = async (userId: string) => {
@@ -124,6 +126,29 @@ function GeneratorContent() {
     }
   };
 
+  // Use our custom hook for auth
+  const { user: walletUser, loading: authLoading } = useWalletAuth();
+
+  // Also keep Supabase auth for non-wallet (if any) or hybrid, but prioritizing walletUser for now as per requirement
+  // actually, let's just use walletUser if available, or fallback to the supabase user state we manage?
+  // The existing code manages `user` state. Let's sync it.
+
+  useEffect(() => {
+    if (walletUser) {
+      setUser(walletUser);
+      fetchCredits(walletUser.id);
+    } else if (!authLoading && !walletUser) {
+      // Only clear if auth finished loading and no user found
+      // But wait, existing logic also checked Supabase session.
+      // Let's keep existing Supabase check but ALSO check walletUser.
+      // Actually best to just let walletUser take precedence for this use case.
+    }
+  }, [walletUser, authLoading]);
+
+  /* 
+  // Commenting out conflicting direct Supabase usage to avoid double-fetching or conflicts
+  // We will rely on useWalletAuth which internally does the profile lookup
+  /*
   useEffect(() => {
     // Check Supabase session
     async function getSession() {
@@ -152,14 +177,15 @@ function GeneratorContent() {
 
     return () => subscription.unsubscribe();
   }, []);
+  */
 
-  const isConnected = !!user;
+  const isConnected = !!user || !!address;
 
   const handleGenerate = async () => {
     if (!isConnected) {
       setToast({
         show: true,
-        message: "Please sign in with Google to generate content",
+        message: "Please connect your wallet to generate content",
         type: "error",
       });
       return;
@@ -169,7 +195,9 @@ function GeneratorContent() {
 
     setIsLoading(true);
     setIsEditing(false);
-    setGeneratedContent("");
+    // don't clear generated content yet if we strictly don't want to flash it away, but usually generation overwrites it
+    // setGeneratedContent("");
+    setShowPreview(true);
 
     try {
       const response = await fetch("/api/generate", {
@@ -199,14 +227,16 @@ function GeneratorContent() {
             data.message || "Failed to generate content. Please try again.",
           type: "error",
         });
+        setShowPreview(false);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error generating content:", error);
       setToast({
         show: true,
         message: "Error generating content. Please try again.",
         type: "error",
       });
+      setShowPreview(false);
     } finally {
       setIsLoading(false);
     }
@@ -256,6 +286,22 @@ function GeneratorContent() {
         }
       }
 
+      const isLinkedinConnected = cookies.find((row) =>
+        row.startsWith("linkedin_is_connected="),
+      );
+      const linkedinUsernameCookie = cookies.find((row) =>
+        row.startsWith("linkedin_username="),
+      );
+
+      if (isLinkedinConnected) {
+        platforms.push("linkedin");
+        if (linkedinUsernameCookie) {
+          usernames["linkedin"] = decodeURIComponent(
+            linkedinUsernameCookie.split("=")[1],
+          );
+        }
+      }
+
       setConnectedPlatforms(platforms);
       setConnectedUsernames(usernames);
 
@@ -280,7 +326,7 @@ function GeneratorContent() {
     };
 
     fetchConnections();
-  }, [account?.address, searchParams]);
+  }, [address, searchParams]);
 
   const handleDisconnect = async (platform: string) => {
     try {
@@ -324,104 +370,93 @@ function GeneratorContent() {
 
       <main className="flex-1 p-4 sm:px-6 lg:px-8">
         <div className="container mx-auto max-w-7xl">
-          <div className="grid gap-8 lg:grid-cols-2">
-            <div className="flex flex-col gap-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
-              <div className="flex items-center justify-between">
-                <h1 className="text-lg md:text-2xl font-bold text-zinc-900 dark:text-white">
-                  Automate your social media posts
-                </h1>
+          <div className="mx-auto w-full max-w-3xl">
+            {!showPreview && (
+              <div className="h-[calc(100vh-160px)] flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
+                <PromptInput
+                  value={prompt}
+                  onChange={setPrompt}
+                  isConnected={isConnected}
+                  hasContent={!!generatedContent}
+                  onNext={() => setShowPreview(true)}
+                />
+
+                <PlatformSelector
+                  selected={selectedPlatform}
+                  onSelect={handlePlatformSelect}
+                  systemInstructions={systemInstructions}
+                  setSystemInstructions={setSystemInstructions}
+                  isSettingsOpen={isSettingsOpen}
+                  setIsSettingsOpen={setIsSettingsOpen}
+                  selectedPlatform={selectedPlatform}
+                  // @ts-ignore
+                  onSaveInstruction={handleSaveInstruction}
+                  // @ts-ignore
+                  connectedPlatforms={connectedPlatforms}
+                  connectedUsernames={connectedUsernames}
+                  onDisconnect={handleDisconnect}
+                  onConnect={handleConnect}
+                  isConnected={isConnected}
+                />
+
+                <button
+                  onClick={handleGenerate}
+                  disabled={isLoading || !prompt}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-base font-semibold text-white transition-all hover:bg-blue-700 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? "Generating..." : "Generate"}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setGeneratedContent(prompt || "");
+                    setIsEditing(true);
+                    setShowPreview(true);
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white py-3 text-base font-semibold text-zinc-900 transition-all hover:bg-zinc-50 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  Write manually
+                </button>
               </div>
+            )}
 
-              <PromptInput
-                value={prompt}
-                onChange={setPrompt}
-                isConnected={isConnected}
-              />
-
-              <PlatformSelector
-                selected={selectedPlatform}
-                onSelect={handlePlatformSelect}
-                systemInstructions={systemInstructions}
-                setSystemInstructions={setSystemInstructions}
-                isSettingsOpen={isSettingsOpen}
-                setIsSettingsOpen={setIsSettingsOpen}
-                selectedPlatform={selectedPlatform}
-                // @ts-ignore
-                onSaveInstruction={handleSaveInstruction}
-                // @ts-ignore
-                connectedPlatforms={connectedPlatforms}
-                connectedUsernames={connectedUsernames}
-                onDisconnect={handleDisconnect}
-                onConnect={handleConnect}
-                isConnected={isConnected}
-              />
-
-              <button
-                onClick={handleGenerate}
-                disabled={isLoading || !prompt}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 text-base font-semibold text-white transition-all hover:bg-blue-700 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? "Generating..." : "Generate"}
-              </button>
-
-              <div className="mt-2 flex items-center gap-3 rounded-lg border border-zinc-100 p-4 dark:border-zinc-800">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-50 dark:bg-green-900/20">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    className="h-5 w-5 text-green-600 dark:text-green-400"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 2a8 8 0 100 16 8 8 0 000-16zm3.857 5.428a.75.75 0 00-1.214-.856L9.336 9.879 7.357 7.857a.75.75 0 00-1.072 1.05l2.536 2.536a.75.75 0 001.072 0l4.964-5.015z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                    Secure Transactions
-                  </h4>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Payments are processed directly via smart contracts.
-                  </p>
-                </div>
+            {showPreview && (
+              <div className="flex flex-col gap-4">
+                <PreviewPanel
+                  isLocked={!isConnected}
+                  isConnected={isConnected}
+                  content={generatedContent}
+                  prompt={prompt}
+                  platform={selectedPlatform}
+                  address={user?.id}
+                  isLoading={isLoading}
+                  // @ts-ignore
+                  isPlatformConnected={connectedPlatforms.includes(
+                    selectedPlatform,
+                  )}
+                  connectedPlatforms={connectedPlatforms}
+                  onPostSuccess={() => {
+                    setGeneratedContent("");
+                    setPrompt("");
+                    setShowPreview(false);
+                    router.push("/posts");
+                    if (user?.id) {
+                      fetchCredits(user.id);
+                    }
+                  }}
+                  isEditing={isEditing}
+                  setIsEditing={setIsEditing}
+                  onContentChange={setGeneratedContent}
+                  onBack={() => {
+                    setShowPreview(false);
+                  }}
+                />
               </div>
-            </div>
-
-            <div className="flex flex-col gap-4">
-              <PreviewPanel
-                isLocked={!isConnected}
-                isConnected={isConnected}
-                content={generatedContent}
-                prompt={prompt}
-                platform={selectedPlatform}
-                address={user?.id}
-                isLoading={isLoading}
-                // @ts-ignore
-                isPlatformConnected={connectedPlatforms.includes(
-                  selectedPlatform,
-                )}
-                connectedPlatforms={connectedPlatforms}
-                onPostSuccess={() => {
-                  setGeneratedContent("");
-                  setPrompt("");
-                  router.refresh();
-                  if (user?.id) {
-                    fetchCredits(user.id);
-                  }
-                }}
-                isEditing={isEditing}
-                setIsEditing={setIsEditing}
-                onContentChange={setGeneratedContent}
-              />
-            </div>
+            )}
           </div>
         </div>
       </main>
 
-      <Footer />
       <Toast
         message={toast.message}
         type={toast.type}

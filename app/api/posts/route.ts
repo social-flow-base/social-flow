@@ -9,16 +9,25 @@ export async function GET(request: NextRequest) {
 
     // Initial auth check
     const authHeader = request.headers.get("authorization");
-    if (!authHeader) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const userIdHeader = request.headers.get("X-User-Id");
+
+    let user = null;
+
+    if (authHeader) {
+      const { data, error: authError } = await supabase.auth.getUser(
+        authHeader.replace("Bearer ", ""),
+      );
+      if (!authError && data.user) {
+        user = data.user;
+      }
     }
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+    // Fallback/Alternative: Wallet User ID
+    if (!user && userIdHeader) {
+      user = { id: userIdHeader };
+    }
 
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

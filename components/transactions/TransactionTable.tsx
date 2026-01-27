@@ -2,21 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/supabase/client";
-import { useActiveAccount } from "thirdweb/react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAccount } from "wagmi";
 
 interface Transaction {
   id: string;
   created_at: string;
-  chain: string; // was platform from saved_content
-  token_symbol: string;
-  amount: number;
+  chain_id: string;
+  currency: string;
+  amount_eth: number;
   tx_hash: string;
-  status: "success" | "pending" | "failed";
+  status: "confirmed" | "pending" | "failed";
 }
 
 export function TransactionTable() {
-  const account = useActiveAccount();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<"All" | "Completed" | "Pending">("All");
@@ -31,37 +30,56 @@ export function TransactionTable() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  const { address } = useAccount();
+
   const fetchTransactions = async () => {
     setIsLoading(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        let dbQuery = supabase
-          .from("transactions")
-          .select("*")
-          .eq("user_id", user.id);
-
-        // Apply Status Filter
-        if (filter === "Completed") {
-          dbQuery = dbQuery.eq("status", "success");
-        } else if (filter === "Pending") {
-          dbQuery = dbQuery.eq("status", "pending");
-        }
-
-        // Apply Search Filter (Tx Hash)
-        if (debouncedSearch) {
-          dbQuery = dbQuery.ilike("tx_hash", `%${debouncedSearch}%`);
-        }
-
-        dbQuery = dbQuery.order("created_at", { ascending: false });
-
-        const { data, error } = await dbQuery;
-        if (error) throw error;
-        setTransactions(data || []);
+      if (!address) {
+        setTransactions([]);
+        setIsLoading(false);
+        return;
       }
+
+      // 1. Get user_id from profiles table using wallet address
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("wallet_address", address)
+        .single();
+
+      if (profileError || !profileData) {
+        console.warn("Profile not found for address:", address);
+        setTransactions([]);
+        setIsLoading(false);
+        return;
+      }
+
+      const userId = profileData.id;
+
+      // 2. Fetch transactions using the retrieved user_id
+      let dbQuery = supabase
+        .from("post_transactions")
+        .select("*")
+        .eq("user_id", userId);
+
+      // Apply Status Filter
+      if (filter === "Completed") {
+        dbQuery = dbQuery.eq("status", "confirmed");
+      } else if (filter === "Pending") {
+        dbQuery = dbQuery.eq("status", "pending");
+      }
+
+      // Apply Search Filter (Tx Hash)
+      if (debouncedSearch) {
+        dbQuery = dbQuery.ilike("tx_hash", `%${debouncedSearch}%`);
+      }
+
+      dbQuery = dbQuery.order("created_at", { ascending: false });
+
+      const { data, error } = await dbQuery;
+      if (error) throw error;
+      setTransactions(data || []);
     } catch (error) {
       console.error("Error fetching transactions:", error);
     } finally {
@@ -71,17 +89,17 @@ export function TransactionTable() {
 
   useEffect(() => {
     fetchTransactions();
-  }, [filter, debouncedSearch]); // Removed account dependency
+  }, [filter, debouncedSearch, address]);
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <div className="flex gap-6 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="flex w-full gap-6 border-b border-zinc-200 dark:border-zinc-800 sm:w-auto">
           {(["All", "Completed", "Pending"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setFilter(tab)}
-              className={`border-b-2 pb-2 text-sm font-medium transition-colors ${
+              className={`flex-1 border-b-2 pb-2 text-center text-sm font-medium transition-colors sm:flex-none sm:text-left ${
                 filter === tab
                   ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
                   : "border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
@@ -185,7 +203,7 @@ export function TransactionTable() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <span className="capitalize text-zinc-900 dark:text-zinc-100">
-                          {tx.chain || "Unknown"}
+                          {tx.chain_id || "Unknown"}
                         </span>
                       </div>
                     </td>
@@ -195,12 +213,12 @@ export function TransactionTable() {
                           $
                         </div>
                         <span className="text-zinc-900 dark:text-zinc-100">
-                          {tx.token_symbol}
+                          {tx.currency}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 font-medium text-zinc-900 dark:text-zinc-100">
-                      {tx.amount}
+                      {tx.amount_eth}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
@@ -229,7 +247,7 @@ export function TransactionTable() {
                     <td className="px-6 py-4 text-right">
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
-                          tx.status === "success"
+                          tx.status === "confirmed"
                             ? "bg-green-50 text-green-700 dark:bg-green-400/10 dark:text-green-400"
                             : tx.status === "pending"
                               ? "bg-yellow-50 text-yellow-700 dark:bg-yellow-400/10 dark:text-yellow-400"

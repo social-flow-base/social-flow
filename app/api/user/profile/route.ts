@@ -21,15 +21,15 @@ export async function GET(request: NextRequest) {
         userId = user.id;
         email = user.email || null;
       } else if (address) {
-        // 2. If no auth user, try to find by wallet address
-        const { data: walletData, error: walletError } = await supabase
-          .from("wallets")
-          .select("user_id")
-          .eq("address", address)
+        // 2. If no auth user, try to find by wallet address in profiles table
+        const { data: profileDataByWallet, error: walletError } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("wallet_address", address)
           .single();
 
-        if (walletData) {
-          userId = walletData.user_id;
+        if (profileDataByWallet) {
+          userId = profileDataByWallet.id;
         }
       }
     }

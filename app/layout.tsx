@@ -1,7 +1,8 @@
 import { WalletWatcher } from "@/components/wallet-watcher";
+import { BottomNav } from "@/components/layout/BottomNav";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import ThirdwebProviderWrapper from "../components/ThirdwebProviderWrapper";
+import { OnchainProviders } from "@/components/OnchainProviders";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -50,12 +51,28 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-stone-100 flex justify-center min-h-screen`}
       >
-        <ThirdwebProviderWrapper>
-          <WalletWatcher />
-          {children}
-        </ThirdwebProviderWrapper>
+        <OnchainProviders>
+          {/* Mobile View Container */}
+          <div className="w-full max-w-md h-[100dvh] bg-background relative flex flex-col shadow-2xl overflow-hidden [transform:translateZ(0)]">
+            <style>{`
+              @media (min-width: 768px) {
+                .md\\:hidden {
+                  display: block !important;
+                }
+              }
+            `}</style>
+
+            <WalletWatcher />
+
+            <main className="flex-1 overflow-y-auto scrollbar-hide pb-20">
+              {children}
+            </main>
+
+            <BottomNav />
+          </div>
+        </OnchainProviders>
       </body>
     </html>
   );

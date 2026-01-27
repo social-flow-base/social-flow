@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   // Check if connection was successful
   if (!connected) {
     return NextResponse.redirect(
-      new URL("/?error=threads_connection_failed", request.url),
+      new URL("/?error=linkedin_connection_failed", request.url),
     );
   }
 
@@ -24,48 +24,48 @@ export async function GET(request: NextRequest) {
   try {
     const late = getLateClient();
 
-    // List accounts to find the new Threads account
+    // List accounts to find the new LinkedIn account
     const { data: accountsData } = await late.accounts.listAccounts({
       query: { profileId },
     });
 
-    const threadsAccount = accountsData?.accounts?.find(
-      (acc: any) => acc.platform === "threads",
+    const linkedinAccount = accountsData?.accounts?.find(
+      (acc: any) => acc.platform === "linkedin",
     );
 
-    if (!threadsAccount) {
+    if (!linkedinAccount) {
       return NextResponse.redirect(
-        new URL("/?error=threads_account_not_found", request.url),
+        new URL("/?error=linkedin_account_not_found", request.url),
       );
     }
 
     const response = NextResponse.redirect(
-      new URL("/?connected=true&platform=threads", request.url),
+      new URL("/?connected=true&platform=linkedin", request.url),
     );
 
     // Set cookies for UI and future use
-    response.cookies.set("threads_is_connected", "true", {
+    response.cookies.set("linkedin_is_connected", "true", {
       httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
     });
 
-    response.cookies.set("threads_username", threadsAccount.username || "", {
+    response.cookies.set("linkedin_username", linkedinAccount.username || "", {
       httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
     });
 
-    response.cookies.set("threads_account_id", threadsAccount._id || "", {
+    response.cookies.set("linkedin_account_id", linkedinAccount._id || "", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
     });
 
-    // Ensure profile cookies is set
+    // Ensure profile cookies is set if we got it from params
     if (profileIdParam && !request.cookies.get("late_profile_id")) {
       response.cookies.set("late_profile_id", profileIdParam, {
         httpOnly: true,
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error("Error in Threads callback:", error);
+    console.error("Error in LinkedIn callback:", error);
     return NextResponse.redirect(
       new URL("/?error=callback_error", request.url),
     );

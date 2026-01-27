@@ -1,16 +1,20 @@
-import { useState } from "react";
 import { Toast } from "@/components/ui/Toast";
+import { useState } from "react";
 
 interface PromptInputProps {
   value: string;
   onChange: (value: string) => void;
   isConnected: boolean;
+  hasContent?: boolean;
+  onNext?: () => void;
 }
 
 export function PromptInput({
   value,
   onChange,
   isConnected,
+  hasContent,
+  onNext,
 }: PromptInputProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [toast, setToast] = useState<{
@@ -27,7 +31,7 @@ export function PromptInput({
     if (!isConnected) {
       setToast({
         show: true,
-        message: "Please sign in with Google to use AI enhancement",
+        message: "Please connect your Coinbase Wallet to use AI enhancement",
         type: "error",
       });
       return;
@@ -46,7 +50,7 @@ export function PromptInput({
           prompt: value,
           platform: "Prompt Engineering",
           systemInstruction:
-            "You are an expert prompt engineer. Your goal is to rewrite the given prompt to be more clear, detailed, and effective for an AI generator. Keep the intent but maximize the potential output quality. Return ONLY the enhanced prompt, no explanations.",
+            "You are an expert prompt engineer. Your goal is to rewrite the given prompt to be more clear, detailed, and effective for an AI generator. Keep the intent but maximize the potential output quality. IMPORTANT: Do not change the language, adjust to user input language. Return ONLY the enhanced prompt, no explanations.",
         }),
       });
 
@@ -70,9 +74,6 @@ export function PromptInput({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-          Prompt
-        </label>
         <button
           onClick={handleGenerate}
           disabled={isGenerating || !value.trim()}
@@ -116,12 +117,33 @@ export function PromptInput({
             </>
           )}
         </button>
+
+        {hasContent && onNext && (
+          <button
+            onClick={onNext}
+            className="flex items-center gap-1.5 rounded-lg bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+          >
+            Next
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-3 w-3"
+            >
+              <path
+                fillRule="evenodd"
+                d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+        )}
       </div>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Describe the content you want to create..."
-        className="min-h-[200px] w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500"
+        className="min-h-[calc(100vh-555px)] mt-3 w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500"
       />
       <Toast
         message={toast.message}

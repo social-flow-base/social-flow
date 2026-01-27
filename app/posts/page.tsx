@@ -2,12 +2,13 @@
 "use client";
 
 import { Header } from "@/components/layout/Header";
-import { Footer } from "@/components/layout/Footer";
 import { AlertModal } from "@/components/ui/AlertModal";
 import { EditPostModal } from "@/components/posts/EditPostModal";
 import { supabase } from "@/supabase/client";
 import { useEffect, useState, Suspense } from "react";
 import { format } from "date-fns";
+import { useAccount } from "wagmi";
+import { ButtonConnectWallet } from "@/components/button-connect-wallet";
 
 interface Post {
   _id?: string;
@@ -116,7 +117,6 @@ export default function PostsPage() {
               </div>
             </div>
           </main>
-          <Footer />
         </div>
       }
     >
@@ -159,6 +159,7 @@ function PostsContent() {
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const { isConnected, address } = useAccount();
 
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
 
@@ -189,7 +190,7 @@ function PostsContent() {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (!currentUser) {
-        router.push("/");
+        // router.push("/"); // Removed to prevent loop
       }
     });
 
@@ -212,15 +213,6 @@ function PostsContent() {
 
     setConnectedPlatforms(platforms);
   }, []);
-
-  const handleSignIn = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin + pathname,
-      },
-    });
-  };
 
   const handleConnect = (platform: string) => {
     window.location.href = `/api/auth/${platform}`;
@@ -308,7 +300,12 @@ function PostsContent() {
       setPosts((prev) =>
         prev.map((p) =>
           (p._id || p.id) === postId
-            ? { ...p, content: newContent, scheduledFor: newScheduledFor }
+            ? {
+                ...p,
+                content: newContent,
+                scheduledFor: newScheduledFor,
+                scheduled_for: newScheduledFor, // Keeping both in sync
+              }
             : p,
         ),
       );
@@ -330,33 +327,64 @@ function PostsContent() {
     }
 
     try {
-      const queryParams = new URLSearchParams({
-        page: pageNum.toString(),
-        limit: "100",
-      });
+      if (!address) {
+        setPosts([]);
+        setLoading(false);
+        setLoadingMore(false);
+        return;
+      }
+
+      const limit = 100;
+      const from = (pageNum - 1) * limit;
+      const to = from + limit - 1;
+
+      // 1. Get user_id from profiles table using wallet address
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("wallet_address", address)
+        .single();
+
+      if (profileError || !profileData) {
+        console.warn("Profile not found for address:", address);
+        setPosts([]);
+        setLoading(false);
+        setLoadingMore(false);
+        return;
+      }
+
+      const userId = profileData.id;
+
+      // 2. Fetch posts using the retrieved user_id
+      let query = supabase
+        .from("getlate_posts")
+        .select("*", { count: "exact" })
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .range(from, to);
 
       if (filter !== "all") {
-        queryParams.append("status", filter);
+        query = query.eq("status", filter);
       }
 
       if (platformFilter !== "all") {
-        queryParams.append("platform", platformFilter);
+        query = query.contains(
+          "platforms",
+          JSON.stringify([{ platform: platformFilter }]),
+        );
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data: newPostsRaw, error } = await query;
 
-      const res = await fetch(`/api/posts?${queryParams.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${session?.access_token}`,
-        },
-      });
-      const data = await res.json();
-      const newPostsRaw: Post[] = data.posts || [];
-      const newPosts = newPostsRaw.filter((p) => p.status !== "failed");
+      if (error) {
+        throw error;
+      }
 
-      if (newPostsRaw.length < 10) {
+      const newPosts = (newPostsRaw || []).filter(
+        (p: any) => p.status !== "failed",
+      );
+
+      if ((newPostsRaw || []).length < limit) {
         setHasMore(false);
       }
 
@@ -365,7 +393,7 @@ function PostsContent() {
         // Simple de-duplication based on _id or id
         const existingIds = new Set(prev.map((p) => p._id || p.id));
         const filteredNew = newPosts.filter(
-          (p) => !existingIds.has(p._id || p.id),
+          (p: any) => !existingIds.has(p._id || p.id),
         );
         return [...prev, ...filteredNew];
       });
@@ -383,7 +411,7 @@ function PostsContent() {
 
   // Initial load and filter change
   useEffect(() => {
-    if (!user) return; // Don't fetch if not logged in
+    if (!address) return; // Fetch if wallet is connected
 
     // Sync URL with filter state
     const current = new URLSearchParams(Array.from(searchParams.entries()));
@@ -407,11 +435,11 @@ function PostsContent() {
     setHasMore(true);
     setPosts([]);
     fetchPosts(1, true);
-  }, [filter, platformFilter, user?.id]);
+  }, [filter, platformFilter, address]);
 
   // Infinite Scroll Observer
   useEffect(() => {
-    if (!user) return; // Don't observe if not logged in
+    if (!address) return; // Don't observe if not logged in
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -430,7 +458,7 @@ function PostsContent() {
     return () => {
       if (trigger) observer.unobserve(trigger);
     };
-  }, [page, hasMore, loading, loadingMore, filter, platformFilter, user?.id]);
+  }, [page, hasMore, loading, loadingMore, filter, platformFilter, address]);
 
   if (authLoading) {
     return (
@@ -439,73 +467,6 @@ function PostsContent() {
         <main className="flex-1 flex items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
         </main>
-        <Footer />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-black">
-        <Header />
-        <main className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
-          <div className="container mx-auto max-w-7xl">
-            <div className="rounded-xl border border-zinc-200 bg-white p-12 text-center dark:border-zinc-800 dark:bg-zinc-900">
-              <div className="mx-auto max-w-sm space-y-4">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={1.5}
-                    stroke="currentColor"
-                    className="h-8 w-8 text-zinc-400"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
-                    />
-                  </svg>
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-xl font-bold text-zinc-900 dark:text-white">
-                    Sign in to view posts
-                  </h3>
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                    Please sign in with your Google account to manage and track
-                    your social media posts.
-                  </p>
-                </div>
-                <button
-                  onClick={handleSignIn}
-                  className="inline-flex w-full items-center justify-center gap-3 rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-semibold text-white transition-all hover:bg-blue-700 active:scale-[0.98]"
-                >
-                  <svg className="h-4 w-4" viewBox="0 0 24 24">
-                    <path
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      fill="#4285F4"
-                    />
-                    <path
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      fill="#34A853"
-                    />
-                    <path
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-                      fill="#FBBC05"
-                    />
-                    <path
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      fill="#EA4335"
-                    />
-                  </svg>
-                  <span>Sign in with Google</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </main>
-        <Footer />
       </div>
     );
   }
@@ -532,7 +493,7 @@ function PostsContent() {
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
-                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                     filter === f
                       ? "bg-blue-600 text-white"
                       : "bg-white text-zinc-600 hover:bg-zinc-100 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
@@ -550,7 +511,7 @@ function PostsContent() {
                 <button
                   key={p}
                   onClick={() => setPlatformFilter(p)}
-                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                     platformFilter === p
                       ? "bg-blue-600 text-white"
                       : "bg-white text-zinc-600 hover:bg-zinc-100 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
@@ -565,7 +526,7 @@ function PostsContent() {
           </div>
 
           {/* List */}
-          <div className="space-y-4">
+          <div className="space-y-4 pb-12">
             {posts.map((post) => {
               console.log("post", post);
 
@@ -576,25 +537,9 @@ function PostsContent() {
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <div className="mb-2 flex items-center gap-2">
-                        {/* @ts-ignore */}
-                        {(post.post_distributions || post.platforms)?.map(
-                          ({ id, _id, platform, username, accountId }: any) => {
-                            return (
-                              <PlatformBadge
-                                key={id || _id}
-                                platform={platform}
-                                username={
-                                  username ||
-                                  accountId?.username ||
-                                  accountId?.displayName
-                                }
-                              />
-                            );
-                          },
-                        )}
+                      <div className="mb-2 flex flex-col gap-1">
                         <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
+                          className={`inline-flex w-fit mb-1 items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
                             post.status === "published"
                               ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
                               : post.status === "scheduled"
@@ -604,7 +549,31 @@ function PostsContent() {
                         >
                           {post.status}
                         </span>
-                        <div className="flex gap-2 text-xs text-zinc-400">
+                        <div className="flex items-center gap-1">
+                          {/* @ts-ignore */}
+                          {(post.post_distributions || post.platforms)?.map(
+                            ({
+                              id,
+                              _id,
+                              platform,
+                              username,
+                              accountId,
+                            }: any) => {
+                              return (
+                                <PlatformBadge
+                                  key={id || _id}
+                                  platform={platform}
+                                  username={
+                                    username ||
+                                    accountId?.username ||
+                                    accountId?.displayName
+                                  }
+                                />
+                              );
+                            },
+                          )}
+                        </div>
+                        <div className="flex mt-1 gap-2 text-xs text-zinc-400">
                           {post.scheduled_for && (
                             <span>
                               Scheduled:{" "}
@@ -641,7 +610,7 @@ function PostsContent() {
                       <>
                         <button
                           onClick={() => handleEditClick(post)}
-                          className="rounded-lg p-2 text-zinc-400 hover:bg-blue-50 hover:text-blue-500 dark:text-zinc-500 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 transition-colors"
+                          className="rounded-lg text-zinc-400 hover:bg-blue-50 hover:text-blue-500 dark:text-zinc-500 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 transition-colors"
                           title="Edit Scheduled Post"
                         >
                           <svg
@@ -656,7 +625,7 @@ function PostsContent() {
                         </button>
                         <button
                           onClick={() => handleDeleteClick(post)}
-                          className="rounded-lg p-2 text-zinc-400 hover:bg-red-50 hover:text-red-500 dark:text-zinc-500 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors"
+                          className="rounded-lg text-zinc-400 hover:bg-red-50 hover:text-red-500 dark:text-zinc-500 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors"
                           title="Delete Scheduled Post"
                         >
                           <svg
@@ -675,13 +644,13 @@ function PostsContent() {
                       </>
                     )}
                   </div>
-                  <span className="text-xs text-zinc-400 mt-20">
+                  <div className="text-xs text-zinc-400 mt-4">
                     Created:{" "}
                     {format(
                       new Date(post.created_at || new Date()),
                       "MMM d, yyyy HH:mm",
                     )}
-                  </span>
+                  </div>
                 </div>
               );
             })}
@@ -745,8 +714,6 @@ function PostsContent() {
         post={postToEdit}
         isLoading={isEditing}
       />
-
-      <Footer />
     </div>
   );
 }
@@ -756,7 +723,7 @@ function PlatformBadge({
   username,
 }: {
   platform: string;
-  username: string;
+  username?: string;
 }) {
   return (
     <span
@@ -774,7 +741,8 @@ function PlatformBadge({
     >
       {PLATFORM_ICONS[platform] && (
         <span className="flex items-center justify-center">
-          {PLATFORM_ICONS[platform]} <span className="ml-1">{username}</span>
+          {PLATFORM_ICONS[platform]}{" "}
+          <span className="ml-1">{username || "Connected"}</span>
         </span>
       )}
     </span>

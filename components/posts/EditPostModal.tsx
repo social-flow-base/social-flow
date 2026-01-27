@@ -70,7 +70,9 @@ export function EditPostModal({
       <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800 transform transition-all">
         <div className="mb-4">
           <h3 className="text-lg font-medium leading-6 text-zinc-900 dark:text-white">
-            Edit Scheduled Post
+            {post && (post as any).status === "published"
+              ? "Edit Published Post"
+              : "Edit Scheduled Post"}
           </h3>
 
           <div className="mt-4 space-y-4">
@@ -109,18 +111,10 @@ export function EditPostModal({
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="mt-6 flex flex-col gap-2">
           <button
             type="button"
-            className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            onClick={onClose}
-            disabled={isLoading}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="inline-flex justify-center rounded-lg border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full justify-center rounded-lg border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={handleSave}
             disabled={isLoading || !content || !scheduleDate || !scheduleTime}
           >
@@ -147,6 +141,14 @@ export function EditPostModal({
             ) : (
               "Save Changes"
             )}
+          </button>
+          <button
+            type="button"
+            className="w-full rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            onClick={onClose}
+            disabled={isLoading}
+          >
+            Cancel
           </button>
         </div>
       </div>

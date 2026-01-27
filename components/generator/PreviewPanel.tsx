@@ -1,12 +1,9 @@
-import { client } from "@/lib/client";
 import { Toast } from "@/components/ui/Toast";
 import { supabase } from "@/supabase/client";
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { prepareTransaction, toWei } from "thirdweb";
-import { defineChain } from "thirdweb/chains";
-import { useActiveAccount, useSendTransaction } from "thirdweb/react";
-import { format } from "date-fns";
+import { useAccount, useSendTransaction } from "wagmi";
+import { parseEther } from "viem";
 
 interface PreviewPanelProps {
   content?: string;
@@ -22,6 +19,7 @@ interface PreviewPanelProps {
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
   onContentChange?: (content: string) => void;
+  onBack?: () => void;
 }
 
 export function PreviewPanel({
@@ -30,7 +28,6 @@ export function PreviewPanel({
   isConnected = false,
   prompt,
   platform,
-  address,
   isLoading = false,
   isPlatformConnected = false,
   connectedPlatforms = [],
@@ -38,12 +35,10 @@ export function PreviewPanel({
   isEditing = false,
   setIsEditing,
   onContentChange,
+  onBack,
+  address,
 }: PreviewPanelProps) {
   const [isWindowFocused, setIsWindowFocused] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
-  const [isDraftSaving, setIsDraftSaving] = useState(false);
-  const [isDraftSaved, setIsDraftSaved] = useState(false);
   const [postingType, setPostingType] = useState<
     null | "immediate" | "scheduled"
   >(null);
@@ -54,8 +49,8 @@ export function PreviewPanel({
 
   // Payment State
   const [isPaid, setIsPaid] = useState(false);
-  const { mutate: sendTransaction } = useSendTransaction();
-  const activeAccount = useActiveAccount();
+  const { sendTransactionAsync } = useSendTransaction();
+  const { address: userAddress } = useAccount();
 
   const [toast, setToast] = useState<{
     show: boolean;
@@ -69,8 +64,6 @@ export function PreviewPanel({
 
   // Reset states when content changes
   useEffect(() => {
-    setIsSaved(false);
-    setIsDraftSaved(false);
     setIsPaid(false); // New content requires new payment
   }, [content]);
 
@@ -112,8 +105,6 @@ export function PreviewPanel({
     }
   }, [content]);
 
-  // ... existing code ...
-
   const handlePost = async (scheduledForDate?: string) => {
     if (!platform || !content) return;
 
@@ -122,15 +113,6 @@ export function PreviewPanel({
       parsedOptions.length > 0 && parsedOptions[selectedOption]
         ? parsedOptions[selectedOption]
         : content;
-
-    if (!isConnected) {
-      setToast({
-        show: true,
-        message: "Please sign in with Google first",
-        type: "error",
-      });
-      return;
-    }
 
     // Check if platform is connected
     const isCustomPosting = customSelectedPlatforms.length > 0;
@@ -185,6 +167,7 @@ export function PreviewPanel({
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(address ? { "X-User-Id": address } : {}), // Add custom user ID header for wallet users
         },
         body: JSON.stringify({
           platforms: targetPlatforms,
@@ -214,16 +197,18 @@ export function PreviewPanel({
       setScheduleTime("");
 
       if (onPostSuccess) {
-        onPostSuccess();
+        setTimeout(() => {
+          onPostSuccess();
+        }, 1500); // Delay to show toast
       }
-
-      // 2. Trigger Payment after successful post
-      // handlePayment();
-    } catch (error: any) {
-      console.error("Post error:", error);
+    } catch (error: unknown) {
+      console.error(
+        "Post error:",
+        error instanceof Error ? error.message : error,
+      );
       setToast({
         show: true,
-        message: error.message || "Failed to post",
+        message: error instanceof Error ? error.message : "Failed to post",
         type: "error",
       });
       setPostingType(null);
@@ -233,181 +218,58 @@ export function PreviewPanel({
   const handlePayment = async () => {
     setPostingType("immediate");
 
-    const transaction = prepareTransaction({
-      to:
-        process.env.NEXT_PUBLIC_SERVER_WALLET_ADDRESS ||
-        "0x0000000000000000000000000000000000000000",
-      chain: defineChain(8453), // Base Mainnet
-      client: client,
-      value: toWei("0.0001"), // Approx 0.30 USD
-    });
-
     try {
-      sendTransaction(transaction, {
-        onSuccess: async (tx) => {
-          setIsPaid(true);
-          setPostingType(null);
-
-          // Record transaction
-          try {
-            const {
-              data: { user },
-            } = await supabase.auth.getUser();
-            if (user && activeAccount) {
-              await supabase.from("transactions").insert({
-                user_id: user.id,
-                wallet_address: activeAccount.address,
-                chain: "base",
-                tx_hash: tx.transactionHash,
-                token_symbol: "ETH",
-                token_decimals: 18,
-                amount: 0.0001,
-                credits_granted: 0, // Transaction used for posting, not buying credits directly here
-              });
-
-              // Also update/select wallet to ensure it's marked as verified/active
-              await supabase
-                .from("wallets")
-                .update({ verified: true })
-                .eq("user_id", user.id)
-                .eq("address", activeAccount.address);
-            }
-          } catch (txErr) {
-            console.error("Failed to record transaction:", txErr);
-          }
-
-          setToast({
-            show: true,
-            message: "Payment successful! Thank you.",
-            type: "success",
-          });
-        },
-        onError: (error) => {
-          console.error("Payment failed", error);
-          setPostingType(null);
-          setToast({
-            show: true,
-            message: "Payment failed. Please try again.",
-            type: "error",
-          });
-        },
+      const txHash = await sendTransactionAsync({
+        to: (process.env.NEXT_PUBLIC_SERVER_WALLET_ADDRESS ||
+          "0x0000000000000000000000000000000000000000") as `0x${string}`,
+        value: parseEther("0.0001"), // Approx 0.30 USD
       });
-    } catch (error) {
-      console.error("Transaction preparation failed", error);
+
+      setIsPaid(true);
+      setPostingType(null);
+
+      // Record transaction
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user && userAddress) {
+          await supabase.from("transactions").insert({
+            user_id: user.id,
+            wallet_address: userAddress,
+            chain: "base",
+            tx_hash: txHash,
+            token_symbol: "ETH",
+            token_decimals: 18,
+            amount: 0.0001,
+            credits_granted: 0, // Transaction used for posting, not buying credits directly here
+          });
+
+          // Also update/select wallet to ensure it's marked as verified/active
+          await supabase
+            .from("wallets")
+            .update({ verified: true })
+            .eq("user_id", user.id)
+            .eq("address", userAddress);
+        }
+      } catch (txErr) {
+        console.error("Failed to record transaction:", txErr);
+      }
+
+      setToast({
+        show: true,
+        message: "Payment successful! Thank you.",
+        type: "success",
+      });
+    } catch (error: unknown) {
+      console.error("Payment failed", error);
       setPostingType(null);
       setToast({
         show: true,
-        message: "Failed to initiate payment",
+        message: "Payment failed. Please try again.",
         type: "error",
       });
     }
-  };
-
-  const handleSaveDraft = async () => {
-    if (!isConnected) {
-      setToast({
-        show: true,
-        message: "Please sign in with Google to save draft",
-        type: "error",
-      });
-      return null;
-    }
-
-    if (!content || isDraftSaved) return null;
-
-    if (prompt && platform && address) {
-      setIsDraftSaving(true);
-      try {
-        const { data, error } = await supabase
-          .from("saved_content")
-          .insert([{ wallet_address: address, content, prompt, platform }])
-          .select()
-          .single();
-
-        if (error) {
-          console.error("Error saving draft:", error);
-          setToast({
-            show: true,
-            message: "Failed to save draft: " + error.message,
-            type: "error",
-          });
-          return null;
-        } else {
-          setIsDraftSaved(true);
-          setToast({
-            show: true,
-            message: "Draft saved successfully!",
-            type: "success",
-          });
-          return data;
-        }
-      } catch (err) {
-        console.error("Unexpected error saving draft:", err);
-        setToast({
-          show: true,
-          message: "An unexpected error occurred.",
-          type: "error",
-        });
-        return null;
-      } finally {
-        setIsDraftSaving(false);
-      }
-    }
-    return null;
-  };
-
-  const handleSave = async () => {
-    if (!isConnected) {
-      setToast({
-        show: true,
-        message: "Please sign in with Google to save content",
-        type: "error",
-      });
-      return null;
-    }
-
-    if (!content || isSaved) return null;
-
-    // Save to database
-    if (prompt && platform && address) {
-      setIsSaving(true);
-      try {
-        const { data, error } = await supabase
-          .from("saved_content")
-          .insert([{ wallet_address: address, content, prompt, platform }])
-          .select()
-          .single();
-
-        if (error) {
-          console.error("Error saving to database:", error);
-          setToast({
-            show: true,
-            message: "Failed to save: " + error.message,
-            type: "error",
-          });
-          return null;
-        } else {
-          setIsSaved(true);
-          setToast({
-            show: true,
-            message: "Content saved successfully!",
-            type: "success",
-          });
-          return data;
-        }
-      } catch (err) {
-        console.error("Unexpected error saving to database:", err);
-        setToast({
-          show: true,
-          message: "An unexpected error occurred.",
-          type: "error",
-        });
-        return null;
-      } finally {
-        setIsSaving(false);
-      }
-    }
-    return null;
   };
 
   useEffect(() => {
@@ -431,13 +293,29 @@ export function PreviewPanel({
   }, []);
 
   return (
-    <div className="flex h-full min-h-[500px] flex-col rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black overflow-hidden relative">
+    <div className="h-[calc(100vh-160px)] flex flex-col rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black overflow-hidden relative">
       <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
         <div className="flex items-center gap-2">
-          <div className="h-2 w-2 rounded-full bg-zinc-300 dark:bg-zinc-700" />
-          <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-            Preview Area
-          </span>
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="mr-2 flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="h-3 w-3"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              Back
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {isConnected && !isLocked && setIsEditing && (
@@ -513,16 +391,15 @@ export function PreviewPanel({
               {isConnected ? "Ready to create magic!" : "Ready to generate?"}
             </h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
-              {isConnected
-                ? "Describe your topic, choose a platform, and generate engaging content in seconds."
-                : "Sign in with Google to unlock AI-powered content generation."}
+              Describe your topic, choose a platform, and generate engaging
+              content in seconds.{" "}
             </p>
             {isConnected && setIsEditing && (
               <button
                 onClick={() => setIsEditing(true)}
                 className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm ring-1 ring-zinc-200 hover:bg-zinc-50 dark:bg-zinc-800 dark:text-white dark:ring-zinc-700 dark:hover:bg-zinc-700"
               >
-                Write Manually
+                Write manually
               </button>
             )}
           </div>
@@ -629,7 +506,7 @@ export function PreviewPanel({
         </button>
 
         {isPlatformConnected && (
-          <div className="mb-3">
+          <div className="mb-1">
             {isScheduling ? (
               <div className="flex flex-col gap-2 rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-800">
                 <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
@@ -858,142 +735,6 @@ export function PreviewPanel({
             )}
           </div>
         )}
-
-        {/* {isPlatformConnected && (
-          <>
-            <button
-              onClick={handleSaveDraft}
-              disabled={!content || isDraftSaving || isDraftSaved}
-              className={`mb-3 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
-                isDraftSaved
-                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                  : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-black dark:text-zinc-300 dark:hover:bg-zinc-900"
-              }`}
-            >
-              {isDraftSaving ? (
-                <>
-                  <svg
-                    className="h-4 w-4 animate-spin"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Saving Draft...
-                </>
-              ) : isDraftSaved ? (
-                <>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    className="h-4 w-4"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  Draft Saved
-                </>
-              ) : (
-                <>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    className="h-4 w-4"
-                  >
-                    <path d="M19.5 21a1.5 1.5 0 001.5-1.5v-4.5a.75.75 0 00-.75-.75H16.5a.75.75 0 00-.75.75v5.25a.75.75 0 00.75.75h3zM13.5 14.25a.75.75 0 00-.75.75v5.25a.75.75 0 00.75.75H15a.75.75 0 00.75-.75v-5.25a.75.75 0 00-.75-.75h-1.5zM12 15a.75.75 0 01.75-.75h1.5a.75.75 0 01.75.75v5.25a.75.75 0 01-.75.75h-1.5a.75.75 0 01-.75-.75V15zM4.5 19.5v-1.5h15v1.5a1.5 1.5 0 01-1.5 1.5H6a1.5 1.5 0 01-1.5-1.5zM6 15v3h3v-3H6z" />
-                    <path
-                      d="M5 3a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V7.414a1 1 0 00-.293-.707l-2.414-2.414A1 1 0 0017.586 3H5zm2 2h10v2H7V5zm0 4h10v2H7V9zm0 4h7v2H7v-2z"
-                      fillRule="evenodd"
-                    />
-                  </svg>
-                  Save as Draft
-                </>
-              )}
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={!content || isSaving || isSaved}
-              className={`flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
-                isSaved
-                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                  : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-black dark:text-zinc-300 dark:hover:bg-zinc-900"
-              }`}
-            >
-              {isSaving ? (
-                <>
-                  <svg
-                    className="h-4 w-4 animate-spin"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Saving...
-                </>
-              ) : isSaved ? (
-                <>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    className="h-4 w-4"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  Saved
-                </>
-              ) : (
-                <>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    className="h-4 w-4"
-                  >
-                    <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.965 3.129V2.75z" />
-                    <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
-                  </svg>
-                  Save Content
-                </>
-              )}
-            </button>
-          </>
-        )} */}
       </div>
 
       <Toast

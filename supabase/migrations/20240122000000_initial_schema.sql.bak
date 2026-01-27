@@ -1,0 +1,182 @@
+-- Clean start: Drop existing objects if they exist
+drop table if exists public.post_transactions cascade;
+drop table if exists public.getlate_posts cascade;
+drop table if exists public.post_distributions cascade;
+drop table if exists public.oauth_accounts cascade;
+drop table if exists public.user_wallets cascade;
+drop table if exists public.user_credits cascade;
+drop table if exists public.credit_usage_logs cascade;
+drop table if exists public.profiles cascade;
+drop table if exists public.wallets cascade;
+drop table if exists public.transactions cascade;
+
+drop type if exists public.oauth_provider cascade;
+drop type if exists public.post_status cascade;
+
+-- Create pgcrypto extension
+create extension if not exists "pgcrypto";
+
+-- Profiles table (linked to auth.users)
+-- Includes wallet information directly (1:1 relationship)
+create table public.profiles (
+  id uuid primary key
+    references auth.users(id)
+    on delete cascade,
+
+  email text,
+  wallet_address text,
+  chain_id text, -- eip155:8453, etc
+  
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- Credit usage logs table
+create table public.credit_usage_logs (
+  id uuid primary key default gen_random_uuid(),
+
+  user_id uuid not null
+    references public.profiles(id)
+    on delete cascade,
+
+  action text not null,
+  credits_used integer not null,
+
+  created_at timestamptz default now()
+);
+
+-- User credits table (1:1 with profiles)
+create table public.user_credits (
+  user_id uuid primary key
+    references public.profiles(id)
+    on delete cascade,
+
+  credits_remaining integer not null default 0,
+  updated_at timestamptz default now()
+);
+
+-- Create RPC function to deduct credit safely
+create or replace function public.deduct_credit(p_user_id uuid)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  -- Ensure user has enough credits
+  if not exists (
+    select 1 from public.user_credits 
+    where user_id = p_user_id and credits_remaining > 0
+  ) then
+    raise exception 'Insufficient credits';
+  end if;
+
+  update public.user_credits
+  set credits_remaining = credits_remaining - 1,
+      updated_at = now()
+  where user_id = p_user_id;
+
+  -- Log the usage
+  insert into public.credit_usage_logs (user_id, action, credits_used)
+  values (p_user_id, 'deduct_credit', 1);
+end;
+$$;
+
+-- Create RPC function to refund credit safely
+create or replace function public.refund_credit(p_user_id uuid)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  update public.user_credits
+  set credits_remaining = credits_remaining + 1,
+      updated_at = now()
+  where user_id = p_user_id;
+
+  -- Log the refund
+  insert into public.credit_usage_logs (user_id, action, credits_used)
+  values (p_user_id, 'refund_credit', -1);
+end;
+$$;
+
+-- Create RPC function to topup credit safely
+create or replace function public.topup_credit(p_user_id uuid, p_amount integer)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  update public.user_credits
+  set credits_remaining = credits_remaining + p_amount,
+      updated_at = now()
+  where user_id = p_user_id;
+
+  -- Log the topup
+  insert into public.credit_usage_logs (user_id, action, credits_used)
+  values (p_user_id, 'topup_credit', -p_amount);
+end;
+$$;
+
+-- New version of getlate_posts
+create table public.getlate_posts (
+  id uuid primary key default gen_random_uuid(),
+
+  -- Internal user
+  user_id uuid not null
+    references public.profiles(id)
+    on delete cascade,
+
+  -- GetLate IDs
+  external_id text unique, -- result.post._id
+  external_user_id text,   -- result.post.userId
+
+  title text default '',
+  content text not null,
+
+  media_items jsonb default '[]'::jsonb,
+  platforms jsonb default '[]'::jsonb,
+
+  scheduled_for timestamptz,
+  timezone text default 'UTC',
+
+  status text not null default 'draft',
+
+  tags jsonb default '[]'::jsonb,
+  hashtags jsonb default '[]'::jsonb,
+  mentions jsonb default '[]'::jsonb,
+
+  visibility text default 'public',
+  crossposting_enabled boolean default true,
+
+  metadata jsonb default '{}'::jsonb,
+  publish_attempts integer default 0,
+
+  content_hash text,
+
+  -- IMPORTANT
+  external_raw jsonb not null, -- SIMPAN SEMUA RESPONSE
+
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- New table post_transactions
+create table public.post_transactions (
+  id uuid primary key default gen_random_uuid(),
+
+  user_id uuid not null references public.profiles(id),
+  post_id uuid not null references public.getlate_posts(id),
+
+  wallet_address text not null,
+  chain_id text not null,
+
+  tx_hash text unique,
+  amount_eth numeric(36, 18) not null,
+  currency text default 'ETH',
+
+  status text not null
+    check (status in ('pending', 'confirmed', 'failed')),
+
+  created_at timestamptz default now(),
+  confirmed_at timestamptz
+);
