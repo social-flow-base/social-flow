@@ -4,7 +4,8 @@ Social Flow is an AI-powered platform designed to streamline social media conten
 
 ## Preview
 
-<img width="1440" height="787" alt="Screenshot 2026-01-22 at 15 03 45" src="https://github.com/user-attachments/assets/bee2625b-3612-43bf-b5ad-6b6cdcf8c493" />
+https://github.com/user-attachments/assets/afa20e1d-010e-4216-860b-66bcbe56386a
+
 
 ## Key Features
 
@@ -39,8 +40,6 @@ Social Flow now features an advanced AI prompting system that personalizes conte
 - Add keywords for natural integration
 - Set preferred hashtags
 - Define topics to avoid
-
-For detailed documentation, see [ENHANCED_PROMPTING.md](ENHANCED_PROMPTING.md)
 
 ## Getting Started
 
