@@ -55,11 +55,9 @@ Then, run the development server:
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
 ## Tech Stack
 
 - **Framework**: [Next.js](https://nextjs.org)
-- **Web3 Integration**: [Thirdweb SDK](https://thirdweb.com)
-- **Styling**: Tailwind CSS
+- **Web3 Integration**: [Base Ecosystem](https://www.base.org/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
 - **Runtime**: [Bun](https://bun.sh)
