@@ -6,7 +6,13 @@ import { ERC20_ABI, IDRX_CONTRACT } from "@/lib/contracts/idrx";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import {
+  useAccount,
+  useReadContract,
+  useWriteContract,
+  useSwitchChain,
+  useChainId,
+} from "wagmi";
 
 interface FaucetModalProps {
   isOpen: boolean;
@@ -26,21 +32,26 @@ export function FaucetModal({ isOpen, onClose }: FaucetModalProps) {
   const { balanceFormatted, refetch: refetchBalance } = useIDRXBalance();
 
   const { writeContractAsync } = useWriteContract();
+  const { switchChainAsync } = useSwitchChain();
+  const chainId = useChainId();
 
   // Read last claim time from contract
-  const { data: lastClaimTime } = useReadContract({
-    address: IDRX_CONTRACT.address,
-    abi: ERC20_ABI,
-    functionName: "lastClaimAt",
-    args: address ? [address] : undefined,
-  });
+  const { data: lastClaimTime, isLoading: isLoadingLastClaim } =
+    useReadContract({
+      address: IDRX_CONTRACT.address,
+      abi: ERC20_ABI,
+      functionName: "lastClaimAt",
+      args: address ? [address] : undefined,
+    });
 
   // Read claim interval from contract
-  const { data: claimInterval } = useReadContract({
-    address: IDRX_CONTRACT.address,
-    abi: ERC20_ABI,
-    functionName: "CLAIM_INTERVAL",
-  });
+  const { data: claimInterval, isLoading: isLoadingInterval } = useReadContract(
+    {
+      address: IDRX_CONTRACT.address,
+      abi: ERC20_ABI,
+      functionName: "CLAIM_INTERVAL",
+    },
+  );
 
   // Calculate next allowed claim time
   const [timeRemaining, setTimeRemaining] = useState<string>("");
@@ -98,6 +109,22 @@ export function FaucetModal({ isOpen, onClose }: FaucetModalProps) {
     setIsProcessing(true);
 
     try {
+      // Check if we're on the correct chain
+      if (chainId !== 84532) {
+        try {
+          await switchChainAsync({ chainId: 84532 });
+        } catch (switchError) {
+          console.error("Failed to switch chain:", switchError);
+          setToast({
+            show: true,
+            message: "Please switch to Base Sepolia network to claim.",
+            type: "error",
+          });
+          setIsProcessing(false);
+          return;
+        }
+      }
+
       // Method 1: If IDRX contract has a faucet/mint function
       // Uncomment this if the contract has a public mint/claim function:
 
@@ -106,6 +133,7 @@ export function FaucetModal({ isOpen, onClose }: FaucetModalProps) {
         abi: ERC20_ABI,
         args: [address],
         functionName: "claim",
+        account: address,
       });
 
       setTxHash(hash);
@@ -331,7 +359,13 @@ export function FaucetModal({ isOpen, onClose }: FaucetModalProps) {
           <div className="flex flex-col gap-3 p-6 pt-0">
             <button
               onClick={handleClaim}
-              disabled={isProcessing || !address || !!timeRemaining}
+              disabled={
+                isProcessing ||
+                !address ||
+                !!timeRemaining ||
+                isLoadingLastClaim ||
+                isLoadingInterval
+              }
               className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:from-blue-700 hover:to-blue-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isProcessing ? (
