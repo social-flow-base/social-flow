@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
-import { useAccount, useWriteContract } from "wagmi";
-import { useReadContract } from "wagmi";
-import { Coins } from "lucide-react";
 import { Toast } from "@/components/ui/Toast";
 import { useIDRXBalance } from "@/hooks/useIDRX";
-import { IDRX_CONTRACT, ERC20_ABI } from "@/lib/contracts/idrx";
+import { ERC20_ABI, IDRX_CONTRACT } from "@/lib/contracts/idrx";
+import Image from "next/image";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { useAccount, useReadContract, useWriteContract } from "wagmi";
 
 interface FaucetModalProps {
   isOpen: boolean;
@@ -225,8 +224,13 @@ export function FaucetModal({ isOpen, onClose }: FaucetModalProps) {
               <div className="space-y-4 mb-6">
                 <div className="rounded-2xl border border-zinc-100 p-4 dark:border-zinc-800 bg-blue-50 dark:bg-blue-900/20">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white">
-                      <Coins className="h-5 w-5" />
+                    <div className="relative h-10 w-10">
+                      <Image
+                        src="/logo-idrx.png"
+                        alt="IDRX"
+                        fill
+                        className="rounded-full object-cover"
+                      />
                     </div>
                     <div>
                       <h3 className="font-bold text-zinc-900 dark:text-white">
@@ -352,7 +356,13 @@ export function FaucetModal({ isOpen, onClose }: FaucetModalProps) {
                 </>
               ) : (
                 <>
-                  <Coins className="h-5 w-5" />
+                  <Image
+                    src="/logo-idrx.png"
+                    alt="IDRX"
+                    width={20}
+                    height={20}
+                    className="rounded-full"
+                  />
                   Claim {FAUCET_AMOUNT_DISPLAY} IDRX
                 </>
               )}
