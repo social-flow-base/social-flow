@@ -4,7 +4,7 @@ Social Flow is an AI-powered platform designed to streamline social media conten
 
 ## Preview
 
-https://github.com/user-attachments/assets/afa20e1d-010e-4216-860b-66bcbe56386a
+https://github.com/user-attachments/assets/82433379-6ff6-416a-b3e5-f6013703f2d3
 
 
 ## Key Features
