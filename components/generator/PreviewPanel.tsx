@@ -156,7 +156,7 @@ export function PreviewPanel({
       return;
     }
 
-    if(!canAfford){
+    if (!canAfford) {
       setToast({
         show: true,
         message: "Insufficient IDRX balance. Please top up your IDRX balance.",
@@ -165,22 +165,21 @@ export function PreviewPanel({
       return;
     }
     setIsPaymentModalOpen(true);
-    return  
+    return;
   };
 
-  const handlePaymentSuccess = async () => {
+  const handlePaymentSuccess = async (txHash: string) => {
     setIsPaymentModalOpen(false);
-    await executePost();
     setToast({
       show: true,
       message: `Payment successful! Deducted ${PRICING.PER_GENERATION.slice(0, -2)} IDRX`,
       type: "success",
     });
     queryClient.invalidateQueries({ queryKey: ["idrx-balance"] });
-    executePost();
+    executePost(undefined, txHash);
   };
 
-  const executePost = async (scheduledForDate?: string) => {
+  const executePost = async (scheduledForDate?: string, txHash?: string) => {
     const isCustomPosting = customSelectedPlatforms.length > 0;
     const contentToPost =
       parsedOptions.length > 0 && parsedOptions[selectedOption]
@@ -208,6 +207,7 @@ export function PreviewPanel({
         },
         body: JSON.stringify({
           platforms: targetPlatforms,
+          txHash,
           content: contentToPost,
           scheduledFor: scheduledForDate,
         }),
@@ -729,7 +729,7 @@ export function PreviewPanel({
         onClose={() => setIsPaymentModalOpen(false)}
         userId={userId || user?.id}
         description={`Pay ${PRICING.PER_GENERATION.slice(0, -2)} IDRX to post this content`}
-        onSuccess={handlePaymentSuccess}
+        onSuccess={(txHash) => handlePaymentSuccess(txHash)}
       />
 
       {/* Modal Removed */}

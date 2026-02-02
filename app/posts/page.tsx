@@ -8,7 +8,6 @@ import { supabase } from "@/supabase/client";
 import { useEffect, useState, Suspense } from "react";
 import { format } from "date-fns";
 import { useAccount } from "wagmi";
-import { ButtonConnectWallet } from "@/components/button-connect-wallet";
 
 interface Post {
   _id?: string;

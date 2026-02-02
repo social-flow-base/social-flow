@@ -6,6 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
+      txHash,
       content,
       platform,
       platforms: requestedPlatforms,
@@ -205,10 +206,7 @@ export async function POST(request: NextRequest) {
                   finalWalletAddress ||
                   "0x0000000000000000000000000000000000000000", // Fallback to avoid constraint error
                 chain_id: "84532",
-                tx_hash:
-                  "0xDemo" +
-                  Math.random().toString(16).slice(2) +
-                  Date.now().toString(16),
+                tx_hash: txHash,
                 amount_eth: 1000, // Cost in IDRX
                 currency: "IDRX",
                 status: "confirmed",

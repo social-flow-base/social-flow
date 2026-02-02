@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  useAccount,
-  useWriteContract,
-} from "wagmi";
+import { useAccount, useWriteContract } from "wagmi";
 import { formatUnits, parseUnits } from "viem";
 import { supabase } from "@/supabase/client";
 import { Toast } from "@/components/ui/Toast";
@@ -15,7 +12,7 @@ interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   userId?: string;
-  onSuccess?: () => void;
+  onSuccess?: (txHash: string) => void;
   amount?: string; // Amount in IDRX (with decimals)
   description?: string;
 }
@@ -136,51 +133,13 @@ export function PaymentModal({
         args: [PRICING.SERVER_WALLET, amountBigInt],
       });
 
-      // Record transaction in database
-      try {
-        const { error: txError } = await supabase.from("transactions").insert({
-          user_id: userId,
-          wallet_address: address,
-          chain: "base-sepolia",
-          tx_hash: hash,
-          token_symbol: IDRX_CONTRACT.symbol,
-          token_decimals: IDRX_CONTRACT.decimals,
-          amount:
-            parseFloat(parseUnits(amount, 0).toString()) /
-            Math.pow(10, IDRX_CONTRACT.decimals),
-          status: "success",
-          description: description,
-        });
+      setIsSuccess(true);
+      setCurrentStep("done");
 
-        if (txError) {
-          console.error("Error recording transaction:", txError);
-        }
+      // Refetch balance
+      await refetchBalance();
 
-        setIsSuccess(true);
-        setCurrentStep("done");
-
-        // Refetch balance
-        await refetchBalance();
-
-        if (onSuccess) onSuccess();
-
-        // Auto close after success
-        setTimeout(() => {
-          onClose();
-          setIsProcessing(false);
-          setIsSuccess(false);
-          setCurrentStep("approve");
-        }, 3000);
-      } catch (error) {
-        console.error("Error recording transaction:", error);
-        setToast({
-          show: true,
-          message:
-            "Payment successful but failed to record. Please contact support.",
-          type: "error",
-        });
-        setIsProcessing(false);
-      }
+      if (onSuccess) onSuccess(hash);
     } catch (err: any) {
       console.error("Transfer failed:", err);
       setToast({
@@ -200,7 +159,7 @@ export function PaymentModal({
     }
   };
 
-  const amountFormatted = formatUnits(amountBigInt, IDRX_CONTRACT.decimals)
+  const amountFormatted = formatUnits(amountBigInt, IDRX_CONTRACT.decimals);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-md overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 animate-in fade-in zoom-in duration-200 flex flex-col max-h-[calc(100vh-160px)]">

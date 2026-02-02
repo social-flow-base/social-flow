@@ -11,14 +11,23 @@ const MAX_LENGTH_CONTENT = 280;
 
 function getBrandVoiceDescription(voice: string | undefined): string {
   const descriptions: Record<string, string> = {
-    professional: "Maintain authority and expertise. Use industry terminology appropriately. Be credible and trustworthy.",
-    casual: "Sound like a friend. Use conversational language. Be approachable and relatable.",
-    humorous: "Inject wit and humor. Make people smile. Be entertaining while staying on message.",
-    authoritative: "Lead with confidence. State facts firmly. Position as the expert in the field.",
-    empathetic: "Show understanding and compassion. Connect emotionally. Acknowledge audience feelings.",
-    inspirational: "Motivate and uplift. Use powerful, positive language. Encourage action and growth.",
+    professional:
+      "Maintain authority and expertise. Use industry terminology appropriately. Be credible and trustworthy.",
+    casual:
+      "Sound like a friend. Use conversational language. Be approachable and relatable.",
+    humorous:
+      "Inject wit and humor. Make people smile. Be entertaining while staying on message.",
+    authoritative:
+      "Lead with confidence. State facts firmly. Position as the expert in the field.",
+    empathetic:
+      "Show understanding and compassion. Connect emotionally. Acknowledge audience feelings.",
+    inspirational:
+      "Motivate and uplift. Use powerful, positive language. Encourage action and growth.",
   };
-  return descriptions[voice?.toLowerCase() || ""] || "Adapt tone based on context and audience.";
+  return (
+    descriptions[voice?.toLowerCase() || ""] ||
+    "Adapt tone based on context and audience."
+  );
 }
 
 function getToneDescription(tone: string | undefined): string {
@@ -27,39 +36,60 @@ function getToneDescription(tone: string | undefined): string {
     formal: "Polished, professional, and structured. Maintain decorum.",
     playful: "Fun, energetic, and spontaneous. Don't be afraid to be quirky.",
     serious: "Focused, straightforward, and no-nonsense. Get to the point.",
-    optimistic: "Positive, hopeful, and forward-looking. Highlight opportunities.",
+    optimistic:
+      "Positive, hopeful, and forward-looking. Highlight opportunities.",
     urgent: "Time-sensitive, action-oriented. Create momentum.",
   };
-  return descriptions[tone?.toLowerCase() || ""] || "Balanced and appropriate to the message.";
+  return (
+    descriptions[tone?.toLowerCase() || ""] ||
+    "Balanced and appropriate to the message."
+  );
 }
 
 function getContentStyleDescription(style: string | undefined): string {
   const descriptions: Record<string, string> = {
-    engaging: "Hook attention immediately. Use compelling angles. Keep readers interested.",
-    educational: "Teach something valuable. Break down complex ideas. Provide actionable insights.",
-    promotional: "Highlight benefits and value. Create desire. Drive conversions.",
-    storytelling: "Weave narratives. Use descriptive language. Create emotional connection.",
+    engaging:
+      "Hook attention immediately. Use compelling angles. Keep readers interested.",
+    educational:
+      "Teach something valuable. Break down complex ideas. Provide actionable insights.",
+    promotional:
+      "Highlight benefits and value. Create desire. Drive conversions.",
+    storytelling:
+      "Weave narratives. Use descriptive language. Create emotional connection.",
     conversational: "Write like you speak. Ask questions. Invite dialogue.",
-    minimalist: "Strip to essentials. Every word counts. Maximum impact, minimum fluff.",
+    minimalist:
+      "Strip to essentials. Every word counts. Maximum impact, minimum fluff.",
   };
-  return descriptions[style?.toLowerCase() || ""] || "Adapt style to maximize engagement.";
+  return (
+    descriptions[style?.toLowerCase() || ""] ||
+    "Adapt style to maximize engagement."
+  );
 }
 
 function getCreativityGuidance(level: number): string {
-  if (level <= 3) return "→ Conservative: Stick to proven formulas. Professional and safe.";
-  if (level <= 5) return "→ Balanced: Mix familiar patterns with subtle creativity.";
-  if (level <= 7) return "→ Creative: Experiment with unique angles and fresh perspectives.";
-  if (level <= 9) return "→ Innovative: Push boundaries. Try bold, unexpected approaches.";
+  if (level <= 3)
+    return "→ Conservative: Stick to proven formulas. Professional and safe.";
+  if (level <= 5)
+    return "→ Balanced: Mix familiar patterns with subtle creativity.";
+  if (level <= 7)
+    return "→ Creative: Experiment with unique angles and fresh perspectives.";
+  if (level <= 9)
+    return "→ Innovative: Push boundaries. Try bold, unexpected approaches.";
   return "→ Maximum Creativity: Break conventions. Be wildly original and daring.";
 }
 
 function getLengthGuidance(length: string | undefined): string {
   const guidance: Record<string, string> = {
-    short: "→ Concise & punchy (1-2 sentences). Every word must earn its place.",
-    medium: "→ Balanced length (2-4 sentences). Provide context without overwhelming.",
+    short:
+      "→ Concise & punchy (1-2 sentences). Every word must earn its place.",
+    medium:
+      "→ Balanced length (2-4 sentences). Provide context without overwhelming.",
     long: "→ Comprehensive (4+ sentences). Tell the full story with rich detail.",
   };
-  return guidance[length?.toLowerCase() || "medium"] || "→ Adapt length to message complexity.";
+  return (
+    guidance[length?.toLowerCase() || "medium"] ||
+    "→ Adapt length to message complexity."
+  );
 }
 
 function getEmojiGuidance(usage: string | undefined): string {
@@ -69,7 +99,10 @@ function getEmojiGuidance(usage: string | undefined): string {
     moderate: "→ 3-5 emojis. Balance professionalism with personality.",
     heavy: "→ 5+ emojis. Express emotions freely and colorfully.",
   };
-  return guidance[usage?.toLowerCase() || "moderate"] || "→ Use emojis to enhance, not distract.";
+  return (
+    guidance[usage?.toLowerCase() || "moderate"] ||
+    "→ Use emojis to enhance, not distract."
+  );
 }
 
 function getCtaGuidance(preference: string | undefined): string {
@@ -79,7 +112,10 @@ function getCtaGuidance(preference: string | undefined): string {
     moderate: "→ Clear but friendly CTA (e.g., 'Check it out', 'Learn more').",
     strong: "→ Direct action demand (e.g., 'Don't miss this!', 'Act now').",
   };
-  return guidance[preference?.toLowerCase() || "moderate"] || "→ Match CTA intensity to message urgency.";
+  return (
+    guidance[preference?.toLowerCase() || "moderate"] ||
+    "→ Match CTA intensity to message urgency."
+  );
 }
 
 export async function POST(req: Request) {
@@ -115,10 +151,10 @@ export async function POST(req: Request) {
     // 2. Fetch user preferences
     const { data: preferences } = userId
       ? await supabase
-        .from("user_preferences")
-        .select("*")
-        .eq("user_id", userId)
-        .single()
+          .from("user_preferences")
+          .select("*")
+          .eq("user_id", userId)
+          .single()
       : { data: null };
 
     // 3. Build sophisticated, context-rich prompting system
@@ -146,21 +182,24 @@ Content Style: ${preferences.content_style || "Engaging"}
       if (preferences.keywords && preferences.keywords.length > 0) {
         contextParts.push(
           `🔑 STRATEGIC KEYWORDS (naturally integrate these):
-${preferences.keywords.map((k: string) => `• ${k}`).join("\n")}`
+${preferences.keywords.map((k: string) => `• ${k}`).join("\n")}`,
         );
       }
 
-      if (preferences.preferred_hashtags && preferences.preferred_hashtags.length > 0) {
+      if (
+        preferences.preferred_hashtags &&
+        preferences.preferred_hashtags.length > 0
+      ) {
         contextParts.push(
           `#️⃣ PREFERRED HASHTAGS (select relevant ones):
-${preferences.preferred_hashtags.map((h: string) => `• ${h}`).join("\n")}`
+${preferences.preferred_hashtags.map((h: string) => `• ${h}`).join("\n")}`,
         );
       }
 
       if (preferences.avoid_topics && preferences.avoid_topics.length > 0) {
         contextParts.push(
           `🚫 TOPICS TO AVOID (never mention):
-${preferences.avoid_topics.map((t: string) => `• ${t}`).join("\n")}`
+${preferences.avoid_topics.map((t: string) => `• ${t}`).join("\n")}`,
         );
       }
 

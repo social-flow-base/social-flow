@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAccount } from "wagmi";
+import Image from "next/image";
 
 interface Transaction {
   id: string;
@@ -223,9 +224,13 @@ export function TransactionTable() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-600 dark:bg-blue-900 dark:text-blue-300">
-                          $
-                        </div>
+                        <Image
+                          src="/logo-idrx.png"
+                          alt="IDRX"
+                          width={14}
+                          height={14}
+                          className="rounded-full"
+                        />
                         <span className="text-zinc-900 dark:text-zinc-100">
                           {tx.token_symbol}
                         </span>
@@ -238,11 +243,15 @@ export function TransactionTable() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
-                        <span className="font-mono">
+                        <a
+                          href={`https://sepolia.basescan.org/tx/${tx.tx_hash}`}
+                          target="_blank"
+                          className="font-mono"
+                        >
                           {tx.tx_hash
                             ? `${tx.tx_hash.slice(0, 6)}...${tx.tx_hash.slice(-4)}`
                             : "N/A"}
-                        </span>
+                        </a>
                         {tx.tx_hash && (
                           <button
                             onClick={() =>
