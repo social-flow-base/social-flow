@@ -486,7 +486,7 @@ function PostsContent() {
           </div>
 
           {/* Filters */}
-          <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div className="mb-6 flex flex-col justify-between gap-4">
             <div className="flex gap-2">
               {(["all", "published", "scheduled"] as const).map((f) => (
                 <button
