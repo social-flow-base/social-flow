@@ -114,12 +114,12 @@ export function EditPostModal({
         <div className="mt-6 flex flex-col gap-2">
           <button
             type="button"
-            className="w-full justify-center rounded-lg border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full items-center text-center justify-center rounded-lg border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={handleSave}
             disabled={isLoading || !content || !scheduleDate || !scheduleTime}
           >
             {isLoading ? (
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-2 text-center mx-auto justify-center">
                 <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                   <circle
                     className="opacity-25"

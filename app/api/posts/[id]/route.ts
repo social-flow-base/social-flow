@@ -57,6 +57,17 @@ export async function DELETE(
     }
 
     // 2. Delete from Supabase
+    // First, delete related transactions to satisfy foreign key constraints
+    const { error: transactionError } = await supabase
+      .from("post_transactions")
+      .delete()
+      .eq("post_id", id);
+
+    if (transactionError) {
+      console.warn("Error deleting related transactions:", transactionError);
+      // We proceed, but allow the next step to potentially fail if constraints persist
+    }
+
     // Using simple delete where id matches.
     // If strict ownership is needed, we should include .eq('user_id', user.id) if user is available.
     const { error } = await supabase
