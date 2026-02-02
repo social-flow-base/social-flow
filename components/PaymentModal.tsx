@@ -4,9 +4,8 @@ import { useState } from "react";
 import {
   useAccount,
   useWriteContract,
-  useWaitForTransactionReceipt,
 } from "wagmi";
-import { parseUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
 import { supabase } from "@/supabase/client";
 import { Toast } from "@/components/ui/Toast";
 import { useIDRXBalance, useIDRXAllowance } from "@/hooks/useIDRX";
@@ -118,8 +117,6 @@ export function PaymentModal({
       return;
     }
 
-    // Validation removed for demo purposes
-    /* 
     if (balance < amountBigInt) {
       setToast({
         show: true,
@@ -128,7 +125,6 @@ export function PaymentModal({
       });
       return;
     }
-    */
 
     setIsProcessing(true);
 
@@ -204,10 +200,7 @@ export function PaymentModal({
     }
   };
 
-  const amountFormatted = parseFloat(
-    parseUnits(amount, -IDRX_CONTRACT.decimals).toString(),
-  ).toFixed(2);
-
+  const amountFormatted = formatUnits(amountBigInt, IDRX_CONTRACT.decimals)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-md overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 animate-in fade-in zoom-in duration-200 flex flex-col max-h-[calc(100vh-160px)]">
